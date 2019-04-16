@@ -1,0 +1,15 @@
+{% extends 'layout.html' %}
+
+{% block title %}List of assignments{% endblock %}
+
+{% block contents %}
+{% if assignments %}
+<ul>
+{% for the in assignments %}
+  <li><a href="{{ the.get_absolute_url }}">{{ the }}</a></li>
+{% endfor %}
+</ul>
+{% else %}
+<p>No assignments are available.</p>
+{% endif %}
+{% endblock %}

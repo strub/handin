@@ -1,0 +1,45 @@
+{% extends 'layout.html' %}
+{% load pandoc_filter %}
+{% load cache %}
+{% load static %}
+
+{% block title %}{{ the.code }} / {{ the.subcode }} ({{ the.promo }}){% endblock %}
+
+{% block headcontents %}
+{{ contents.header | safe }}
+{% endblock %}
+
+{% block contents %}
+
+<script>
+function initializeForms() {
+  $(document).on('change', ':file', function() {
+    var input  = $(this);
+    var nfiles = input.get(0).files ? input.get(0).files.length : 1;
+    var label  = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+
+    if (nfiles > 1)
+      label = nfiles + ' files selected';
+
+    input.parents('.input-group').find(':text').val(label);
+  });
+}
+
+$(document).ready(function() {
+  initializeForms();
+});
+</script>
+
+{% if not user.is_authenticated %}
+<div class="alert alert-danger">You must be authenticated to submit your files</div>
+{% else %}
+{% if handins %}
+<div class="alert alert-info">
+  We have submissions for the following questions:
+  {{ handins.keys | join:", " }}
+</div>
+{% endif %}
+{% endif %}
+
+{{ contents.text | safe }}
+{% endblock %}

@@ -1,0 +1,12 @@
+beautifulsoup4
+django
+django-cleanup
+django-debug-toolbar
+jsonschema
+psycopg2
+pygments
+pypandoc
+python-decouple
+python-magic
+python-memcached
+python-mimeparse

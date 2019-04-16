@@ -1,0 +1,92 @@
+#! /usr/bin/env python3
+
+# --------------------------------------------------------------------
+import sys, os, re, base64, json
+import urllib as ul, urllib.parse, urllib.request
+
+# --------------------------------------------------------------------
+USAGE = 'Usage: %s [CODE] [SUBCODE] [PROMO] [MARKDOWN] [FILES...]'
+URL   = 'https://vps.strub.nu/agns/%(code)s/%(subcode)s/%(promo)s/'
+
+# --------------------------------------------------------------------
+class Error(Exception):
+    pass
+
+# --------------------------------------------------------------------
+def validate_code(code):
+    if re.match(r'^[a-zA-Z0-9]+$', code) is None:
+        raise Error('invalid code: %s' % (code,))
+    return code
+
+# --------------------------------------------------------------------
+def validate_subcode(subcode):
+    if re.match(r'^[a-zA-Z0-9]+$', subcode) is None:
+        raise Error('invalid sub-code: %s' % (subcode,))
+    return subcode
+
+# --------------------------------------------------------------------
+def validate_promo(promo):
+    if re.match(r'^[0-9]+$', promo) is None or int(promo) < 1794:
+        raise Error('invalid promo: %s' % (promo,))
+    return int(promo)
+
+# --------------------------------------------------------------------
+def read_file(path, charset = None):
+    mode = 'rb' if charset is None else 'r'
+    try:
+        with open(path, mode, encoding = charset) as stream:
+            return stream.read()
+    except (IOError, UnicodeDecodeError) as e:
+        raise Error("error while reading file `%s': %s" % (path, e), e)
+
+# --------------------------------------------------------------------
+def _main():
+    if len(sys.argv)-1 < 4:
+        print(USAGE % (sys.argv[0],), file = sys.stderr)
+        exit(1)
+
+    try:
+        (code, subcode, promo, markdown) = sys.argv[1:5]
+        resources = sys.argv[5:]
+
+        base      = os.path.dirname(markdown)
+        code      = validate_code(code)
+        subcode   = validate_subcode(subcode)
+        promo     = validate_promo(promo)
+        markdown  = read_file(markdown, charset = 'utf-8')
+        resources = [(os.path.relpath(x, base), read_file(x)) for x in resources]
+
+        dta = dict(
+            code      = code,
+            subcode   = subcode,
+            promo     = promo,
+            contents  = markdown,
+            resources = \
+                [dict(name = x[0], contents = base64.b64encode(x[1]).decode('utf-8')) \
+                     for x in resources],
+        )
+
+        url = URL % (dict(code    = ul.parse.quote(code),
+                          subcode = ul.parse.quote(subcode),
+                          promo   = ul.parse.quote(str(promo))))
+
+        dta = json.dumps(dta).encode('utf-8')
+        hdr = { 'Content-Type': 'application/json; charset=utf-8' }
+        req = ul.request.Request(url, data = dta, headers = hdr, method = 'PUT')
+
+        try:
+            with ul.request.urlopen(req) as cx:
+                response = cx.read()
+        except ul.error.HTTPError as e:
+            raise Error('cannot upload assignment: %s' % (e,), e)
+
+        sys.stderr.write(response.decode('ascii', errors='surrogateescape'))
+
+    except Error as e:
+        print('error: %s' % (e,), file = sys.stderr)
+        exit(1)
+
+# --------------------------------------------------------------------
+if __name__ == '__main__':
+    _main()
+
