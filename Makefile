@@ -32,6 +32,7 @@ release: __force__
 	  --exclude='migrations/*.py' --exclude='media/' \
 	  --exclude='*.sqlite3' --exclude='.git*' \
 	  . $(HOST):/opt/handin/handin
+	ssh vps.strub.nu 'sudo -i systemctl stop gunicorn'
 
 # --------------------------------------------------------------------
 release-restart: release
