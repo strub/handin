@@ -310,7 +310,7 @@ class Assignment(views.generic.TemplateView):
         handins = None
         if self.request.user.is_authenticated:
             handins = models.HandIn.objects \
-                .filter(assignment = the) \
+                .filter(assignment = the, user = self.request.user) \
                 .values('index') \
                 .annotate(lastdate = Max('date')) \
                 .values('index', 'lastdate') \
