@@ -62,7 +62,8 @@ FORM = r'''
 </form>
 '''
 
-LAST_SUBMIT = '<div class="alert alert-info">Last submission: %s</div>'
+NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
+LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 
 # --------------------------------------------------------------------
 def questions_of_contents(contents):
@@ -143,6 +144,7 @@ def uploads(request, code, subcode, promo):
 
     context = dict(
         the = the, qst = qst, users = users, pct = pct,
+        logins = sorted(users.keys()),
         uploads = uploads, nav = dict(asgn = the, uploads = the))
     return dutils.render(request, 'uploads.html', context)
 
@@ -205,7 +207,8 @@ def upload_by_user_index(request, code, subcode, promo, index, login):
     if len(resources) == 1:
         response = http.FileResponse(
             resources[0].contents.open(), content_type = 'text/plain')
-        response['Content-Disposition'] = 'inline'
+        response['Content-Disposition'] = \
+            'inline; filename="%s"' % (resources[0].name)
         return response
 
     tmp = tempfile.NamedTemporaryFile(delete = False)
@@ -239,7 +242,7 @@ def handin(request, code, subcode, promo, index):
                 user       = request.user,
                 assignment = the,
                 index      = index,
-                date       = dt.datetime.now(),
+                date       = utils.timezone.now(),
             )
             handin.save()
 
@@ -307,6 +310,9 @@ class Assignment(views.generic.TemplateView):
 
             return doit
 
+        def upload_match_nc(match):
+            return NO_SUBMIT
+
         handins = None
         if self.request.user.is_authenticated:
             handins = models.HandIn.objects \
@@ -318,6 +324,8 @@ class Assignment(views.generic.TemplateView):
             handins = { int(x['index']): x['lastdate'] for x in handins }
 
             text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match(handins), text)
+        else:
+            text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)            
 
         ctx['the'     ] = the
         ctx['nav'     ] = dict(oth = (the, oth), uploads = the)

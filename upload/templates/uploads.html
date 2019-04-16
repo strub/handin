@@ -7,6 +7,11 @@
 <h2>Uploads (by students)</h2>
 
 {% if uploads %}
+<p class="alert alert-info">
+
+# of submissions: {{ uploads|length }}
+</p>
+
 <table class="table table-striped">
 <thead>
   <tr>
@@ -17,7 +22,8 @@
   </tr>
 </thead>
 <tbody>
-{% for login, user in users.items %}
+{% for login in logins %}
+{% with user=users|get_item:login %}
 {% with upload=uploads|get_item:login %}
   <tr>
     <td>{{ user.fullname }}</td>
@@ -34,6 +40,7 @@
     </td>
     {% endfor %}
   </tr>
+{% endwith %}
 {% endwith %}
 {% endfor %}
 </tbody>
