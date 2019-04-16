@@ -47,12 +47,17 @@ SCHEMA = dict(
 FORM = r'''
 <form class="form" method="post" enctype="multipart/form-data"
       action="handins/%(index)d/">
-  <div class="input-group">
-    <span class="btn btn-default btn-file">
-      Browse...<input type="file" name="file" multiple="multiple" />
-    </span>
-    <input type="text" class="form-control" readonly="readonly" />
-    <input type="submit" value="Submit..." class="btn btn-primary" />
+
+  <div class="form-group">
+    <div class="input-group input-file" name="file">
+      <span class="input-group-btn">
+        <button class="btn btn-default btn-choose" type="button">Choose</button>
+      </span>
+      <input type="text" class="form-control" placeholder='Choose a file...' readonly="readonly" />
+      <span class="input-group-btn">
+        <button class="btn btn-primary" type="submit">Submit</button>
+      </span>
+    </div>
   </div>
 </form>
 '''

@@ -12,21 +12,41 @@
 {% block contents %}
 
 <script>
-function initializeForms() {
-  $(document).on('change', ':file', function() {
-    var input  = $(this);
-    var nfiles = input.get(0).files ? input.get(0).files.length : 1;
-    var label  = input.val().replace(/\\/g, '/').replace(/.*\//, '');
+function prepare_input_file() {
+  $('.input-file').before(
+    function() {
+      if ( ! $(this).prev().hasClass('input-ghost') ) {
+        var element = $('<input>', {
+          'type'     : 'file',
+          'class'    : 'input-ghost',
+          'style'    : 'visibility:hidden; height:0',
+          'multiple' : 'multiple',
+        });
+        element.attr('name', $(this).attr('name'));
+        element.change(function() {
+          var nfiles = element.get(0).files ? element.get(0).files.length : 1;
+          var label  = element.val().replace(/\\/g, '/').replace(/.*\//, '');
 
-    if (nfiles > 1)
-      label = nfiles + ' files selected';
-
-    input.parents('.input-group').find(':text').val(label);
-  });
+          if (nfiles > 1)
+            label = nfiles + ' files selected';
+          element.next(element).find('input').val(label);
+        });
+        $(this).find('button.btn-choose').click(function() {
+          element.click();
+        });
+        $(this).find('input').css('cursor', 'pointer');
+        $(this).find('input').mousedown(function() {
+          $(this).parents('.input-file').prev().click();
+          return false;
+        });
+        return element;
+      }
+    }
+  );
 }
 
 $(document).ready(function() {
-  initializeForms();
+  prepare_input_file();
 });
 </script>
 
