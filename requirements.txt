@@ -1,6 +1,7 @@
 beautifulsoup4
 django
 django-cleanup
+django-dbbackup
 django-debug-toolbar
 jsonschema
 psycopg2

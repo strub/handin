@@ -23,6 +23,14 @@ CACHES = {
 }
 
 # --------------------------------------------------------------------
+INSTALLED_APPS += [
+  'dbbackup',
+]
+
+DBBACKUP_STORAGE = 'django.core.files.storage.FileSystemStorage'
+DBBACKUP_STORAGE_OPTIONS = { 'location': env_config.get('BACKUP_DIR') }
+
+# --------------------------------------------------------------------
 DATABASES = {
     'default': {
         'ENGINE'   : 'django.db.backends.postgresql_psycopg2',

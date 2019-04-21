@@ -1,7 +1,7 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-.PHONY: default serve release cleardb migrations __force__
+.PHONY: default serve release cleardb migrations backup __force__
 
 HOST = vps.strub.nu
 
@@ -33,6 +33,11 @@ release: __force__
 	  --exclude='*.sqlite3' --exclude='.git*' \
 	  . $(HOST):/opt/handin/handin
 	ssh vps.strub.nu 'sudo -i systemctl stop gunicorn'
+
+# --------------------------------------------------------------------
+backup: __force__
+	./manage.py dbbackup    --settings=handin.settings.deploy
+	./manage.py mediabackup --settings=handin.settings.deploy
 
 # --------------------------------------------------------------------
 release-restart: release
