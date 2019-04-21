@@ -10,6 +10,31 @@ from django.db.models.signals import post_delete
 from django.dispatch import receiver
 
 # --------------------------------------------------------------------
+class NatListField(models.TextField):
+    description   = "Stores a list of non-negative integers"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value:
+            value = []
+        if isinstance(value, list):
+            return value
+        return [int(x) for x in value.split()]
+
+    def from_db_value(self, value, expression, connection, context):
+        return self.to_python(value)
+
+    def get_prep_value(self, value):
+        if value is None:
+            return value
+        return ' '.join('%d' % (x,) for x in value)
+
+    def value_to_string(self, obj):
+        return self.get_db_prep_value(self._get_val_from_obj(obj))
+
+# --------------------------------------------------------------------
 class Assignment(models.Model):
     class Meta:
         unique_together = (('code', 'subcode', 'promo'))
@@ -19,6 +44,7 @@ class Assignment(models.Model):
     subcode  = models.CharField(max_length = 128)
     promo    = models.IntegerField()
     contents = models.TextField()
+    tests    = NatListField()
 
     @property
     def key(self):
@@ -34,7 +60,8 @@ class Assignment(models.Model):
 # --------------------------------------------------------------------
 def resource_upload(instance, filename):
     the = instance.assignment
-    return 'asgn/%s/%s/%d/%s' % (the.code, the.subcode, the.promo, filename)
+    return 'asgn/%s/%s/%s/%d/%s' % \
+        (instance.namespace, the.code, the.subcode, the.promo, filename)
 
 # --------------------------------------------------------------------
 class Resource(models.Model):
@@ -45,6 +72,7 @@ class Resource(models.Model):
     name       = models.CharField(max_length = 256)
     ctype      = models.CharField(max_length = 128)
     contents   = models.FileField(upload_to = resource_upload)
+    namespace  = models.CharField(max_length = 128)
 
     def get_absolute_url(self):
         from django.urls import reverse

@@ -22,22 +22,33 @@ from . import models
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
 
+RSCHEMA = dict(
+    type  = 'array',
+    items = dict(
+        type       = 'object',
+        properties = dict(
+            name     = dict(type = 'string', pattern = r'^[^\\]+$'),
+            contents = dict(type = 'string')
+        )
+    )
+)
+
 SCHEMA = dict(
     type       = 'object',
     properties = dict(
-        code      = dict(type = 'string', pattern = REIDENT, minLength = 1),
-        subcode   = dict(type = 'string', pattern = REIDENT, minLength = 1),
-        promo     = dict(type = 'number', minimum = 1794),
-        contents  = dict(type = 'string'),
-        resources = dict(
-            type  = 'array',
-            items = dict(
-                type       = 'object',
-                properties = dict(
-                    name     = dict(type = 'string', pattern = r'^[^\\]+$'),
-                    contents = dict(type = 'string')
-                )
-            )
+        code        = dict(type = 'string', pattern = REIDENT, minLength = 1),
+        subcode     = dict(type = 'string', pattern = REIDENT, minLength = 1),
+        promo       = dict(type = 'number', minimum = 1794),
+        contents    = dict(type = 'string'),
+        resources   = RSCHEMA,
+        autocorrect = dict(
+            type = 'object',
+            properties = dict(
+                forno = dict(type = 'array', items = dict(type = 'number')),
+                files = RSCHEMA,
+                extra = RSCHEMA,
+            ),
+            required = ['forno', 'files', 'extra'],
         )
     ),
     required = ['code', 'subcode', 'promo', 'contents', 'resources'],
@@ -275,6 +286,23 @@ class Assignment(views.generic.TemplateView):
         return 'template-%s-%s-%d-%s' % (code, subcode, promo, extra)
     EXTRA = ('text', 'header')
 
+    @classmethod
+    def save_resource(cls, asg, res, namespace):
+        import magic
+
+        mime = magic.Magic(mime = True)
+        ctype = mime.from_buffer(res['contents'])
+        ctype = ctype if ctype else 'application/octet-stream'
+
+        ores = models.Resource(
+            name       = res['name'],
+            ctype      = ctype,
+            assignment = asg,
+            namespace  = namespace,
+        )
+        ores.contents.save(res['name'], ContentFile(res['contents']))
+        ores.save()
+
     def get_context_data(self, code, subcode, promo, *args, **kw):
         from .templatetags.pandoc_filter import pandoc_gen
 
@@ -338,7 +366,7 @@ class Assignment(views.generic.TemplateView):
         return ctx
 
     def put(self, request, code, subcode, promo):
-        import json, jsonschema, mimeparse as mp, base64, binascii, magic
+        import json, jsonschema, mimeparse as mp, base64, binascii
 
         mtype, msub, mdata = mp.parse_mime_type(request.content_type)
 
@@ -369,25 +397,27 @@ class Assignment(views.generic.TemplateView):
         if len(rnames) != len(set(rnames)):
             return http.HttpResponseBadRequest()
 
-        key = dict(code=code, subcode=subcode, promo=promo)
-        dfl = dict(contents = jso['contents'])
+        acorrect = jso.get('autocorrect', None)
 
-        mime = magic.Magic(mime = True)
+        key = dict(code=code, subcode=subcode, promo=promo)
+        dfl = dict(contents = jso['contents'], tests = [])
+
+        if acorrect is not None:
+            dfl['tests'] = acorrect['forno']
 
         with db.transaction.atomic():
             asg, _ = models.Assignment.objects.update_or_create(dfl, **key)
             asg.resource_set.all().delete()
-            for res in jso['resources']:
-                ctype = mime.from_buffer(res['contents'])
-                ctype = ctype if ctype else 'application/octet-stream'
+            asg.save()          # Delete all resource files
 
-                ores = models.Resource(
-                    name       = res['name'],
-                    ctype      = ctype,
-                    assignment = asg,
-                )
-                ores.contents.save(res['name'], ContentFile(res['contents']))
-                ores.save()
+        with db.transaction.atomic():
+            for res in jso['resources']:
+                self.save_resource(asg, res, 'resource')
+            if acorrect is not None:
+                for res in acorrect['files']:
+                    self.save_resource(asg, res, 'tests/files')
+                for res in acorrect['extra']:
+                    self.save_resource(asg, res, 'tests/extra')
 
         for extra in self.EXTRA:
             cache.delete(self.get_cache_key(code, subcode, promo, extra))
@@ -399,7 +429,7 @@ class Assignment(views.generic.TemplateView):
 def resource(requet, code, subcode, promo, name):
     key = dict(code=code, subcode=subcode, promo=promo)
     the = dutils.get_object_or_404(models.Assignment, **key)
-    key = dict(assignment=the, name=name)
+    key = dict(assignment=the, name=name, namespace='resource')
     the = dutils.get_object_or_404(models.Resource, **key)
     rep = http.FileResponse(the.contents.open(), content_type = the.ctype)
 
