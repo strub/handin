@@ -155,7 +155,7 @@ def uploads(request, code, subcode, promo):
 
     context = dict(
         the = the, qst = qst, users = users, pct = pct,
-        logins = sorted(users.keys()),
+        logins = sorted(users.keys(), key = lambda x : x.lower()),
         uploads = uploads, nav = dict(asgn = the, uploads = the))
     return dutils.render(request, 'uploads.html', context)
 
