@@ -37,21 +37,28 @@
               <a href="#" class="dropdown-toggle" data-toggle="dropdown">Quick jump<span class="caret">&nbsp;</span></a>
               <ul class="dropdown-menu" role="menu">
                 {% if perms.upload.admin %}
-                {% if nav.asgn %}
-                <li><a href="{% url 'upload:assignment' nav.asgn.code nav.asgn.subcode nav.asgn.promo %}">Back to assignment</a></li>
-                <li class="divider"> </li>
-                {% endif %}
-                {% if nav.uploads %}
-                <li><a href="{% url 'upload:uploads' nav.uploads.code nav.uploads.subcode nav.uploads.promo %}">See uploads (by students)</a></li>
-                <li><a href="{% url 'upload:uploads_by_questions' nav.uploads.code nav.uploads.subcode nav.uploads.promo %}">See uploads (by questions)</a></li>
+                {% if nav.inasgn %}
+                <li><a href="{% url 'upload:uploads' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by students)</a></li>
+                <li><a href="{% url 'upload:uploads_by_questions' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by questions)</a></li>
                 <li class="divider"> </li>
                 {% endif %}
                 <li><a href="{% url 'upload:assignments' %}">See all assignments</a></li>
                 <li class="divider"> </li>
                 {% endif %}
-                {% for asgn in nav.oth.1 %}
-                <li><a href="{% url 'upload:assignment' the.code asgn the.promo %}">{{ the.code }} - {{ asgn }}</a></li>
+                {% if nav.inasgn %}
+                <li><a href="{% url 'upload:myuploads' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See my uploads</a></li>
+                {% endif %}
+                {% if nav.inasgn and nav.back %}
+                <li class="divider"> </li>
+                <li><a href="{% url 'upload:assignment' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">Back to assignment</a></li>
+                {% endif %}
+                {% if nav.oasgn.1 %}
+                <li class="divider"> </li>
+                {% for asgn in nav.oasgn.1 %}
+                <li><a href="{% url 'upload:assignment' nav.inasgn.code asgn nav.inasgn.promo %}">{{ nav.inasgn.code }} - {{ asgn }}</a></li>
                 {% endfor %}
+                {% endif %}
+                {% block nav %}{% endblock %}
               </ul>
             </li>
           </ul>

@@ -1,8 +1,9 @@
-beautifulsoup4
 django
+django-background-tasks
 django-cleanup
 django-dbbackup
 django-debug-toolbar
+docker
 jsonschema
 psycopg2
 pygments

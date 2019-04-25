@@ -1,5 +1,6 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile
+from   itertools import groupby
 
 import django.http as http
 import django.views as views
@@ -7,7 +8,7 @@ import django.urls as durls
 import django.utils.decorators as udecorators
 from   django.views.decorators import http as dhttp
 from   django.views.decorators import csrf as dcsrf
-from   django.db.models import Max
+from   django.db.models import Max, FilteredRelation
 import django.contrib.auth as dauth
 from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
@@ -80,6 +81,44 @@ LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 def questions_of_contents(contents):
     qst = re.findall(r'<\!--\s*UPLOAD:(\d+)\s*-->', contents)
     return sorted([int(x) for x in qst])
+
+# --------------------------------------------------------------------
+def _build_nav(the, back = True):
+    oth = models.Assignment.objects \
+                .filter(code=the.code, promo=the.promo) \
+                .order_by('subcode').values('subcode')
+    oth = [x['subcode'] for x in oth]
+    return dict(oasgn = (the, oth), inasgn = the, back = back)
+
+# --------------------------------------------------------------------
+def _download_handin(handin, resources, inline = True):
+    if len(resources) == 0:
+        raise http.Http404('no resources')
+
+    if len(resources) == 1:
+        response = http.FileResponse(
+            resources[0].contents.open(), content_type = 'text/plain')
+        response['Content-Disposition'] = \
+            '%s; filename="%s"' % ('inline' if inline else 'attachment',
+                                   resources[0].name)
+        return response
+
+    tmp = tempfile.NamedTemporaryFile(delete = False)
+    try:
+        with open(tmp.name, 'wb') as stream:
+            with zipfile.ZipFile(stream, 'w') as zipf:
+                for resource in resources:
+                    with resource.contents.open() as istream:
+                        zipf.writestr(resource.name, istream.read())
+        response = http.FileResponse(
+            open(tmp.name, 'rb'), content_type = 'application/zip')
+        fname = '%s-%s-%s-%d-%d.zip' % (login, code, subcode, promo, index)
+        fname = ''.join([x for x in fname if x.isalnum() or x in '-.'])
+        response['Content-Disposition'] = 'attachment; filename="%s"' % (fname,)
+        return response
+
+    finally:
+        os.remove(tmp.name)
 
 # --------------------------------------------------------------------
 @dhttp.require_http_methods(['GET', 'POST'])
@@ -155,9 +194,69 @@ def uploads(request, code, subcode, promo):
 
     context = dict(
         the = the, qst = qst, users = users, pct = pct,
-        logins = sorted(users.keys(), key = lambda x : x.lower()),
-        uploads = uploads, nav = dict(asgn = the, uploads = the))
+        logins  = sorted(users.keys(), key = lambda x : x.lower()),
+        uploads = uploads, nav = _build_nav(the))
     return dutils.render(request, 'uploads.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def myuploads(request, code, subcode, promo):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+    rqs = models.HandIn.objects \
+                .filter(user = request.user, assignment = the) \
+                .all()
+    rqs = { k: max(v, key = lambda x : x.date) \
+              for k, v in groupby(rqs, lambda x : x.index) }
+
+    for q in qst: rqs.setdefault(q, None)
+
+    ctx = dict(the = the, rqs = rqs, qst = qst, nav = _build_nav(the))
+
+    return dutils.render(request, 'myuploads.html', ctx)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def myupload(request, code, subcode, promo, index):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').all()[:]
+
+    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
+
+    return dutils.render(request, 'myupload.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def download_myupload(request, code, subcode, promo, index):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').first()
+
+    if hdn is None:
+        raise http.Http404('no uploads')
+
+    resources = models.HandInFile.objects.filter(handin = hdn).all()
+
+    return _download_handin(hdn, resources, inline = False)
 
 # --------------------------------------------------------------------
 @login_required
@@ -188,10 +287,8 @@ def uploads_by_questions(request, code, subcode, promo):
             if i in pct: pct[i] += 1
     if nusers > 0:
         pct = { x: y / float(nusers) for x, y in pct.items() }
-
     context = dict(
-        the = the, qst = qst, nusers = nusers, pct = pct,
-        nav = dict(asgn = the, uploads = the))
+        the = the, qst = qst, nusers = nusers, pct = pct, nav = _build_nav(the))
     return dutils.render(request, 'uploads_by_questions.html', context)
 
 # --------------------------------------------------------------------
@@ -208,36 +305,11 @@ def upload_by_user_index(request, code, subcode, promo, index, login):
         .first()
 
     if handin is None:
-        return http.HttpResponseNotFound()
+        raise http.Http404('no uploads')
 
     resources = models.HandInFile.objects.filter(handin = handin).all()
 
-    if len(resources) == 0:
-        return http.HttpHttpResponseNotFound()
-
-    if len(resources) == 1:
-        response = http.FileResponse(
-            resources[0].contents.open(), content_type = 'text/plain')
-        response['Content-Disposition'] = \
-            'inline; filename="%s"' % (resources[0].name)
-        return response
-
-    tmp = tempfile.NamedTemporaryFile(delete = False)
-    try:
-        with open(tmp.name, 'wb') as stream:
-            with zipfile.ZipFile(stream, 'w') as zipf:
-                for resource in resources:
-                    with resource.contents.open() as istream:
-                        zipf.writestr(resource.name, istream.read())
-        response = http.FileResponse(
-            open(tmp.name, 'rb'), content_type = 'application/zip')
-        fname = '%s-%s-%s-%d-%d.zip' % (login, code, subcode, promo, index)
-        fname = ''.join([x for x in fname if x.isalnum() or x in '-.'])
-        response['Content-Disposition'] = 'attachment; filename="%s"' % (fname,)
-        return response
-
-    finally:
-        os.remove(tmp.name)
+    return _download_handin(handin, resources, inline = True)
 
 # --------------------------------------------------------------------
 @login_required                 # FIXME
@@ -309,9 +381,6 @@ class Assignment(views.generic.TemplateView):
         ctx = super().get_context_data(*args, **kw)
         key = dict(code=code, subcode=subcode, promo=promo)
         the = dutils.get_object_or_404(models.Assignment, **key)
-        oth = models.Assignment.objects.filter \
-                  (code=code, promo=promo).order_by('subcode').values('subcode')
-        oth = [x['subcode'] for x in oth]
 
         text   = cache.get(self.get_cache_key(code, subcode, promo, 'text'  ))
         header = cache.get(self.get_cache_key(code, subcode, promo, 'header'))
@@ -356,7 +425,7 @@ class Assignment(views.generic.TemplateView):
             text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)            
 
         ctx['the'     ] = the
-        ctx['nav'     ] = dict(oth = (the, oth), uploads = the)
+        ctx['nav'     ] = _build_nav(the, back = False)
         ctx['handins' ] = handins
         ctx['contents'] = dict(header = header, text = text)
 
@@ -426,7 +495,7 @@ class Assignment(views.generic.TemplateView):
 
 # --------------------------------------------------------------------
 @dhttp.require_GET
-def resource(requet, code, subcode, promo, name):
+def resource(request, code, subcode, promo, name):
     key = dict(code=code, subcode=subcode, promo=promo)
     the = dutils.get_object_or_404(models.Assignment, **key)
     key = dict(assignment=the, name=name, namespace='resource')

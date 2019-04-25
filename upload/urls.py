@@ -20,6 +20,15 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/',
              views.uploads, name='uploads'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/my/',
+             views.myuploads, name='myuploads'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/my/<int:index>/',
+             views.myupload, name='myupload'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/my/download/<int:index>/',
+             views.download_myupload, name='myupload-dw'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/questions/<int:index>/<login>/',
              views.upload_by_user_index, name='upload_by_user_index'),
 

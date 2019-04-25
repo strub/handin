@@ -1,0 +1,51 @@
+{% extends 'layout.html' %}
+{% load getitem_filter %}
+
+{% block title %}My uploads{% endblock %}
+
+{% block contents %}
+<h2>My uploads</h2>
+
+<table class="table table-striped">
+<thead>
+  <tr>
+    <th>Question</th>
+    <th>Upload timestamp</th>
+    <th>Status</th>
+  </tr>
+</thead>
+<tbody>
+{% for q in qst %}
+{% with upload=rqs|get_item:q %}
+  <tr>
+    <td>{{ q }}</td>
+    {% if upload %}
+    <td>{{ upload.date }}</td>
+    <td>
+    {% if upload.status == '' %}
+    <span class="glyphicon glyphicon-time"></span>
+    {% elif upload.status == 'success' %}
+    <span class="glyphicon glyphicon-ok"></span>
+    {% elif upload.status == 'failure' %}
+    <span class="glyphicon glyphicon-remove"></span>
+    {% endif %}
+    </td>
+    <td class="text-center">
+      <a href="{% url 'upload:myupload-dw' the.code the.subcode the.promo q %}">
+        <span class="glyphicon glyphicon-download"></span>
+      </a>
+      <a href="{% url 'upload:myupload' the.code the.subcode the.promo q %}">
+        <span class="glyphicon glyphicon-circle-arrow-right"></span>
+      </a>
+    </td>
+    {% else %}
+    <td>No submission</td>
+    <td>-</td>
+    <td></td>
+    {% endif %}
+  </tr>
+{% endwith %}
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}
