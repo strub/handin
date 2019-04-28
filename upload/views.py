@@ -570,14 +570,16 @@ def check(request, code, subcode, promo, index):
                 coddet.reset(); coddet.feed(contents); coddet.close()
                 encoding = coddet.result['encoding'] or 'ascii'
                 contents = codecs.decode(contents, encoding)
-                outname  = os.path.basename(filename.contents.path)
+                outname  = os.path.basename(filename.name)
                 outname  = os.path.join(workdir, outname)
                 with open(outname, 'wb') as stream:
                     stream.write(codecs.encode(contents, 'utf-8'))
             else:
-                shutil.copy(filename.contents.path, workdir)
+                shutil.copy(filename.contents.path,
+                            os.path.join(workdir, filename.name))
         for filename in files:
-            shutil.copy(filename.contents.path, workdir)
+            shutil.copy(filename.contents.path,
+                        os.path.join(workdir, filename.name))
 
         dclient = docker.from_env()
 
@@ -599,7 +601,7 @@ def check(request, code, subcode, promo, index):
             '/opt/handin/bin/python3',
             '/opt/handin/user/scripts/achecker.py',
             '/opt/handin/user',
-            entry,
+            os.path.splitext(entry)[0],
         ]
 
         container = dclient.containers.run \

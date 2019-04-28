@@ -30,7 +30,6 @@ class TestSuiteRunner(object):
                        for f in filenames if os.path.splitext(f)[1] == '.java']
             if not lib:
                 return
-            print(lib)
             cmd = ['javac', '-sourcepath', self._lib, '-d', self._clazz] + lib
             sp.check_call(cmd, cwd = self.workdir)
         except (OSError, sp.CalledProcessError) as e:
@@ -45,7 +44,8 @@ class TestSuiteRunner(object):
             java = [x for x in java \
                        if os.path.splitext(x)[1].lower() == '.java']
             java = [os.path.join(self._src, x) for x in java]
-            cmd  = ['javac', '-cp', self._clazz, '-sourcepath', self._src]
+            cmd  = ['javac', '-cp', self._clazz,'-d', self._clazz,
+                    '-sourcepath', self._src]
             cmd += java
             sp.check_call(cmd, cwd = self.workdir)
         except sp.CalledProcessError as e:
@@ -56,7 +56,7 @@ class TestSuiteRunner(object):
     def _run_tests(self):
         logging.info('executing test...')
         try:
-            cmd = self._java + [self.RUNNER, self._test]
+            cmd = self._java + [self.RUNNER, self.entry]
             sp.check_call(cmd, cwd = self.workdir)
         except sp.CalledProcessError as e:
             logging.error('failure: %s' % (e,))
@@ -65,7 +65,6 @@ class TestSuiteRunner(object):
 
     def run(self):
         self._compile_lib()
-        os.system('find ' + self._clazz)
         self._compile_project()
         self._run_tests()
 
