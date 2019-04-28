@@ -1,5 +1,6 @@
 # --------------------------------------------------------------------
-import sys, os, re, datetime as dt, tempfile, zipfile
+import sys, os, re, datetime as dt, tempfile, zipfile, tempfile
+import codecs, chardet, shutil, docker
 from   itertools import groupby
 
 import django.http as http
@@ -19,6 +20,9 @@ from   django.core.files.base import ContentFile
 from   django.core.files.storage import default_storage
 
 from . import models
+
+# --------------------------------------------------------------------
+ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -362,7 +366,7 @@ class Assignment(views.generic.TemplateView):
     def save_resource(cls, asg, res, namespace):
         import magic
 
-        mime = magic.Magic(mime = True)
+        mime  = magic.Magic(mime = True)
         ctype = mime.from_buffer(res['contents'])
         ctype = ctype if ctype else 'application/octet-stream'
 
@@ -453,6 +457,14 @@ class Assignment(views.generic.TemplateView):
                 res['contents'] = \
                     base64.b64decode(res['contents'], validate = True)
 
+            if 'autocorrect' in jso:
+                for res in jso['autocorrect']['files']:
+                    res['contents'] = \
+                        base64.b64decode(res['contents'], validate = True)
+                for res in jso['autocorrect']['extra']:
+                    res['contents'] = \
+                        base64.b64decode(res['contents'], validate = True)
+
         except (json.decoder.JSONDecodeError,
                 jsonschema.exceptions.ValidationError,
                 UnicodeDecodeError, binascii.Error) as e:
@@ -503,3 +515,97 @@ def resource(request, code, subcode, promo, name):
     rep = http.FileResponse(the.contents.open(), content_type = the.ctype)
 
     rep['Content-Disposition'] = 'inline'; return rep
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def check(request, code, subcode, promo, index):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst or index not in the.tests:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').first()
+
+    if hdn is None:
+        raise http.Http404('no uploads')
+
+    totest = models.HandInFile.objects.filter(handin = hdn).all()[:]
+
+    if not totest:
+        raise http.Http500('no upload files')
+
+    entry = 'Test_%s_%d.java' % (subcode, index)
+
+    tests = models.Resource.objects \
+                  .filter(namespace  = 'tests/files',
+                          assignment = the,
+                          name       = entry) \
+                  .first()
+
+    extra = models.Resource.objects \
+                  .filter(namespace  = 'tests/extra',
+                          assignment = the) \
+                  .all()[:]
+
+    if tests is None:
+        raise http.Http500('no test files')
+
+    files = [tests] + list(extra)
+
+    def do_recode(filename):
+        return True
+        return os.path.splitext(filename)[1].lower() == '.tex'
+
+    with tempfile.TemporaryDirectory() as workdir:
+        for filename in totest:
+            if do_recode(filename.contents.path):
+                coddet = chardet.universaldetector.UniversalDetector()
+                with filename.contents.open('br') as stream:
+                    contents = stream.read()
+                coddet.reset(); coddet.feed(contents); coddet.close()
+                encoding = coddet.result['encoding'] or 'ascii'
+                contents = codecs.decode(contents, encoding)
+                outname  = os.path.basename(filename.contents.path)
+                outname  = os.path.join(workdir, outname)
+                with open(outname, 'wb') as stream:
+                    stream.write(codecs.encode(contents, 'utf-8'))
+            else:
+                shutil.copy(filename.contents.path, workdir)
+        for filename in files:
+            shutil.copy(filename.contents.path, workdir)
+
+        dclient = docker.from_env()
+
+        container = dict(
+            detach  = True , stream      = False,
+            remove  = True , auto_remove = True ,
+            stdout  = True , stderr      = True ,
+            volumes = {
+                os.path.realpath(workdir): \
+                    dict(bind = '/opt/handin/user/src', mode = 'rw'),
+                os.path.join(ACDIR, 'libsupport'): \
+                    dict(bind = '/opt/handin/user/lib', mode = 'ro'),
+                os.path.join(ACDIR, 'scripts'): \
+                    dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
+            }
+        )
+
+        command = [
+            '/opt/handin/bin/python3',
+            '/opt/handin/user/scripts/achecker.py',
+            '/opt/handin/user',
+            entry,
+        ]
+
+        container = dclient.containers.run \
+            ('handin:latest', command, **container)
+
+        for line in container.logs(stream = True):
+            print(line.rstrip(b'\r\n').decode('utf-8'))
+
+    return http.HttpResponse(str([x.contents.path for x in files]))

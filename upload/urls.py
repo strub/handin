@@ -26,6 +26,9 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/my/<int:index>/',
              views.myupload, name='myupload'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/my/check/<int:index>/',
+             views.check, name='check'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/my/download/<int:index>/',
              views.download_myupload, name='myupload-dw'),
 

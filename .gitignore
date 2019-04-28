@@ -1,7 +1,7 @@
 /db.sqlite3
 /.env
 /media/
-/autocorrect/
+/sandbox/
 *.pyc
 */migrations/*.py
 */!migrations/__init__.py
