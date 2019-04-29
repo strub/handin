@@ -17,27 +17,30 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/handins/<int:index>/',
              views.handin, name='handin'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/',
-             views.uploads, name='uploads'),
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/',
+             views.uploads_by_users, name='uploads_by_users'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/my/',
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-questions/',
+             views.uploads_by_questions, name='uploads_by_questions'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/<int:index>',
+             views.upload_details_by_login, name='upload_details_by_login'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/<int:index>/',
+             views.download_upload, name='download_upload'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/',
              views.myuploads, name='myuploads'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/my/<int:index>/',
-             views.myupload, name='myupload'),
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/<int:index>/',
+             views.myupload_details, name='myupload'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/my/check/<int:index>/',
-             views.check, name='check'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/my/download/<int:index>/',
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/download/<int:index>/',
              views.download_myupload, name='myupload-dw'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/questions/<int:index>/<login>/',
-             views.upload_by_user_index, name='upload_by_user_index'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/questions/:all/',
-             views.uploads_by_questions, name='uploads_by_questions'),
 
     path('agns/<code>/<subcode>/<int:promo>/resources/<path:name>',
              views.resource, name='resource'),
+
+    path('run-check/',
+             views.check, name='check'),
 ]

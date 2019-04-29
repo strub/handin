@@ -1,8 +1,9 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile
-import codecs, chardet, shutil, docker
+import codecs, chardet, shutil, uuid as muuid, docker
 from   itertools import groupby
 
+from   django.conf import settings
 import django.http as http
 import django.views as views
 import django.urls as durls
@@ -18,6 +19,8 @@ import django.db as db
 from   django.core.cache import cache
 from   django.core.files.base import ContentFile
 from   django.core.files.storage import default_storage
+
+import background_task as bt
 
 from . import models
 
@@ -125,6 +128,133 @@ def _download_handin(handin, resources, inline = True):
         os.remove(tmp.name)
 
 # --------------------------------------------------------------------
+def _defer_check_internal(uuid):
+    hdn = models.HandIn.objects.get(pk = uuid)
+    the = hdn.assignment
+    qst = questions_of_contents(the.contents)
+
+    if hdn.index not in qst or hdn.index not in the.tests:
+        hdn.status = 'no-test'; hdn.save()
+        return
+
+    totest = models.HandInFile.objects.filter(handin = hdn).all()[:]
+
+    if not totest:
+        hdn.status = 'failure'; hdn.save()
+        return
+
+    entry = 'Test_%s_%d.java' % (the.subcode, hdn.index)
+
+    tests = models.Resource.objects \
+                  .filter(namespace  = 'tests/files',
+                          assignment = the,
+                          name       = entry) \
+                  .first()
+
+    extra = models.Resource.objects \
+                  .filter(namespace  = 'tests/extra',
+                          assignment = the) \
+                  .all()[:]
+
+    if tests is None:
+        return
+
+    files = [tests] + list(extra)
+
+    def do_recode(filename):
+        return os.path.splitext(filename)[1].lower() == '.java'
+
+    try:
+        log = []
+
+        with tempfile.TemporaryDirectory() as workdir:
+            log += ['copying files...']
+
+            for filename in totest:
+                if do_recode(filename.contents.path):
+                    coddet = chardet.universaldetector.UniversalDetector()
+                    with filename.contents.open('br') as stream:
+                        contents = stream.read()
+                    coddet.reset(); coddet.feed(contents); coddet.close()
+                    encoding = coddet.result['encoding'] or 'ascii'
+                    contents = codecs.decode(contents, encoding)
+                    outname  = os.path.basename(filename.name)
+                    outname  = os.path.join(workdir, outname)
+                    with open(outname, 'wb') as stream:
+                        stream.write(codecs.encode(contents, 'utf-8'))
+                else:
+                    shutil.copy(filename.contents.path,
+                                os.path.join(workdir, filename.name))
+            for filename in files:
+                shutil.copy(filename.contents.path,
+                            os.path.join(workdir, filename.name))
+
+            log += ['...done']
+
+            dclient = docker.from_env()
+
+            container = dict(
+                detach  = True , stream      = False,
+                remove  = True , auto_remove = True ,
+                stdout  = True , stderr      = True ,
+                volumes = {
+                    os.path.realpath(workdir): \
+                        dict(bind = '/opt/handin/user/src', mode = 'rw'),
+                    os.path.join(ACDIR, 'libsupport'): \
+                        dict(bind = '/opt/handin/user/lib', mode = 'ro'),
+                    os.path.join(ACDIR, 'scripts'): \
+                        dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
+                }
+            )
+
+            command = [
+                'timeout', '--preserve-status', '--signal=KILL', '120',
+                '/opt/handin/bin/python3',
+                '/opt/handin/user/scripts/achecker.py',
+                '/opt/handin/user',
+                os.path.splitext(entry)[0],
+            ]
+
+            log += ['running docker...']
+
+            container = dclient.containers.run \
+                ('handin:latest', command, **container)
+
+            for i, line in enumerate(container.logs(stream = True)):
+                if i < 1000:
+                    line = line.rstrip(b'\r\n')
+                    line = line.decode('utf-8', errors = 'surrogateescape')
+                    log += [line]
+
+            status = container.wait()
+
+            if 'Error' in status and status['Error'] is not None:
+                status = 'errored'
+            else:
+                status = 'success' if status['StatusCode'] == 0 else 'failure'
+
+            log += ['...docker ended (%s)' % (status,)]
+
+    except Exception as e:
+        log += [repr(e)]
+        status = 'errored'
+
+    hdn.log    = '\n'.join(log) + '\n'
+    hdn.status = status
+    hdn.save()
+
+# --------------------------------------------------------------------
+@bt.background(queue = 'check')
+def _defer_check(uuid):
+    try:
+        print('CHECK: %s' % (uuid,), file=sys.stderr)
+        _defer_check_internal(muuid.UUID(uuid))
+        print('DONE: %s' % (uuid,), file=sys.stderr)
+    except Exception as e:
+        print(e, file=sys.stderr)
+        raise
+
+# --------------------------------------------------------------------
 @dhttp.require_http_methods(['GET', 'POST'])
 def login(request):
     if request.user.is_authenticated:
@@ -166,7 +296,7 @@ def assignments(request):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def uploads(request, code, subcode, promo):
+def uploads_by_users(request, code, subcode, promo):
     key = dict(code=code, subcode=subcode, promo=promo)
     the = dutils.get_object_or_404(models.Assignment, **key)
     qst = questions_of_contents(the.contents)
@@ -200,67 +330,7 @@ def uploads(request, code, subcode, promo):
         the = the, qst = qst, users = users, pct = pct,
         logins  = sorted(users.keys(), key = lambda x : x.lower()),
         uploads = uploads, nav = _build_nav(the))
-    return dutils.render(request, 'uploads.html', context)
-
-# --------------------------------------------------------------------
-@login_required
-@dhttp.require_GET
-def myuploads(request, code, subcode, promo):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
-    qst = questions_of_contents(the.contents)
-    rqs = models.HandIn.objects \
-                .filter(user = request.user, assignment = the) \
-                .all()
-    rqs = { k: max(v, key = lambda x : x.date) \
-              for k, v in groupby(rqs, lambda x : x.index) }
-
-    for q in qst: rqs.setdefault(q, None)
-
-    ctx = dict(the = the, rqs = rqs, qst = qst, nav = _build_nav(the))
-
-    return dutils.render(request, 'myuploads.html', ctx)
-
-# --------------------------------------------------------------------
-@login_required
-@dhttp.require_GET
-def myupload(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
-    qst = questions_of_contents(the.contents)
-
-    if index not in qst:
-        raise http.Http404('unknown index')
-
-    hdn = models.HandIn.objects \
-                .filter(user = request.user, assignment = the, index = index) \
-                .order_by('-date').all()[:]
-
-    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
-
-    return dutils.render(request, 'myupload.html', context)
-
-# --------------------------------------------------------------------
-@login_required
-@dhttp.require_GET
-def download_myupload(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
-    qst = questions_of_contents(the.contents)
-
-    if index not in qst:
-        raise http.Http404('unknown index')
-
-    hdn = models.HandIn.objects \
-                .filter(user = request.user, assignment = the, index = index) \
-                .order_by('-date').first()
-
-    if hdn is None:
-        raise http.Http404('no uploads')
-
-    resources = models.HandInFile.objects.filter(handin = hdn).all()
-
-    return _download_handin(hdn, resources, inline = False)
+    return dutils.render(request, 'uploads_by_users.html', context)
 
 # --------------------------------------------------------------------
 @login_required
@@ -299,7 +369,88 @@ def uploads_by_questions(request, code, subcode, promo):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def upload_by_user_index(request, code, subcode, promo, index, login):
+def upload_details_by_login(request, code, subcode, promo, login, index):
+    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    key  = dict(code=code, subcode=subcode, promo=promo)
+    the  = dutils.get_object_or_404(models.Assignment, **key)
+    qst  = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = user, assignment = the, index = index) \
+                .order_by('-date').all()[:]
+
+    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
+
+    return dutils.render(request, 'upload_details.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def myuploads(request, code, subcode, promo):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+    rqs = models.HandIn.objects \
+                .filter(user = request.user, assignment = the) \
+                .all()
+    rqs = { k: max(v, key = lambda x : x.date) \
+              for k, v in groupby(rqs, lambda x : x.index) }
+
+    for q in qst: rqs.setdefault(q, None)
+
+    ctx = dict(the = the, rqs = rqs, qst = qst, nav = _build_nav(the))
+
+    return dutils.render(request, 'myuploads.html', ctx)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def myupload_details(request, code, subcode, promo, index):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').all()[:]
+
+    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
+
+    return dutils.render(request, 'myupload_details.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def download_myupload(request, code, subcode, promo, index):
+    key = dict(code=code, subcode=subcode, promo=promo)
+    the = dutils.get_object_or_404(models.Assignment, **key)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').first()
+
+    if hdn is None:
+        raise http.Http404('no uploads')
+
+    resources = models.HandInFile.objects.filter(handin = hdn).all()
+
+    return _download_handin(hdn, resources, inline = False)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_upload(request, code, subcode, promo, login, index):
     key = dict(code=code, subcode=subcode, promo=promo)
     the = dutils.get_object_or_404(models.Assignment, **key)
 
@@ -345,6 +496,8 @@ def handin(request, code, subcode, promo, index):
     url = dutils.reverse \
         ('upload:assignment', args=(code, subcode, promo))
     url = url + '#submit-%d' % (index,)
+
+    _defer_check(str(handin.uuid))
 
     return dutils.redirect(url)
 
@@ -426,7 +579,7 @@ class Assignment(views.generic.TemplateView):
 
             text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match(handins), text)
         else:
-            text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)            
+            text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)
 
         ctx['the'     ] = the
         ctx['nav'     ] = _build_nav(the, back = False)
@@ -518,96 +671,15 @@ def resource(request, code, subcode, promo, name):
 
 # --------------------------------------------------------------------
 @login_required
+@permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def check(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
-    qst = questions_of_contents(the.contents)
+def check(request):
+    handins = models.HandIn.objects \
+                           .filter(status = '') \
+                           .select_related('assignment', 'user') \
+                           .order_by('date') \
+                           .all()
+    for handin in handins:
+        _defer_check(str(handin.uuid))
 
-    if index not in qst or index not in the.tests:
-        raise http.Http404('unknown index')
-
-    hdn = models.HandIn.objects \
-                .filter(user = request.user, assignment = the, index = index) \
-                .order_by('-date').first()
-
-    if hdn is None:
-        raise http.Http404('no uploads')
-
-    totest = models.HandInFile.objects.filter(handin = hdn).all()[:]
-
-    if not totest:
-        raise http.Http500('no upload files')
-
-    entry = 'Test_%s_%d.java' % (subcode, index)
-
-    tests = models.Resource.objects \
-                  .filter(namespace  = 'tests/files',
-                          assignment = the,
-                          name       = entry) \
-                  .first()
-
-    extra = models.Resource.objects \
-                  .filter(namespace  = 'tests/extra',
-                          assignment = the) \
-                  .all()[:]
-
-    if tests is None:
-        raise http.Http500('no test files')
-
-    files = [tests] + list(extra)
-
-    def do_recode(filename):
-        return True
-        return os.path.splitext(filename)[1].lower() == '.tex'
-
-    with tempfile.TemporaryDirectory() as workdir:
-        for filename in totest:
-            if do_recode(filename.contents.path):
-                coddet = chardet.universaldetector.UniversalDetector()
-                with filename.contents.open('br') as stream:
-                    contents = stream.read()
-                coddet.reset(); coddet.feed(contents); coddet.close()
-                encoding = coddet.result['encoding'] or 'ascii'
-                contents = codecs.decode(contents, encoding)
-                outname  = os.path.basename(filename.name)
-                outname  = os.path.join(workdir, outname)
-                with open(outname, 'wb') as stream:
-                    stream.write(codecs.encode(contents, 'utf-8'))
-            else:
-                shutil.copy(filename.contents.path,
-                            os.path.join(workdir, filename.name))
-        for filename in files:
-            shutil.copy(filename.contents.path,
-                        os.path.join(workdir, filename.name))
-
-        dclient = docker.from_env()
-
-        container = dict(
-            detach  = True , stream      = False,
-            remove  = True , auto_remove = True ,
-            stdout  = True , stderr      = True ,
-            volumes = {
-                os.path.realpath(workdir): \
-                    dict(bind = '/opt/handin/user/src', mode = 'rw'),
-                os.path.join(ACDIR, 'libsupport'): \
-                    dict(bind = '/opt/handin/user/lib', mode = 'ro'),
-                os.path.join(ACDIR, 'scripts'): \
-                    dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
-            }
-        )
-
-        command = [
-            '/opt/handin/bin/python3',
-            '/opt/handin/user/scripts/achecker.py',
-            '/opt/handin/user',
-            os.path.splitext(entry)[0],
-        ]
-
-        container = dclient.containers.run \
-            ('handin:latest', command, **container)
-
-        for line in container.logs(stream = True):
-            print(line.rstrip(b'\r\n').decode('utf-8'))
-
-    return http.HttpResponse(str([x.contents.path for x in files]))
+    return http.HttpResponse(str(len(handins)), content_type='text/plain')

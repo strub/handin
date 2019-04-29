@@ -22,7 +22,7 @@ class XLDAPBackend(object):
     URL = 'https://www.enseignement.polytechnique.fr/informatique/sso/sso.php'
 
     def authenticate(self, request=None, **credentials):
-        login    = credentials.get('username', None)
+        login    = credentials.get('username', None).lower()
         password = credentials.get('password', None)
 
         if login is None or password is None:
@@ -60,7 +60,7 @@ class XLDAPBackend(object):
             print(e); return None
 
         user = User(
-            login     = data['login'],
+            login     = data['login'].lower(),
             email     = '%s@polytechnique.edu' % (data['login'],),
             firstname = data['firstname'],
             lastname  = data['lastname'],

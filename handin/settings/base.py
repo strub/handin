@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'django_cleanup.apps.CleanupConfig',
+    'background_task',
 ]
 
 MIDDLEWARE = [
@@ -85,3 +86,11 @@ STATIC_URL = '/static/'
 STATICFILES_DIRS = [
     os.path.join(BASE_DIR, 'static'),
 ]
+
+# --------------------------------------------------------------------
+# Background tasks
+
+MAX_ATTEMPTS = 4
+MAX_RUN_TIME = 300
+BACKGROUND_TASK_RUN_ASYNC = True
+BACKGROUND_TASK_ASYNC_THREADS = 4

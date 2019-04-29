@@ -38,7 +38,7 @@
               <ul class="dropdown-menu" role="menu">
                 {% if perms.upload.admin %}
                 {% if nav.inasgn %}
-                <li><a href="{% url 'upload:uploads' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by students)</a></li>
+                <li><a href="{% url 'upload:uploads_by_users' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by students)</a></li>
                 <li><a href="{% url 'upload:uploads_by_questions' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by questions)</a></li>
                 <li class="divider"> </li>
                 {% endif %}

@@ -1,8 +1,8 @@
 # -*- Makefile -*-
 
 # --------------------------------------------------------------------
-.PHONY: __force__ default serve release cleardb
-.PHONY: migrations reset-migrations backup
+.PHONY: __force__ default serve release release-norestart cleardb
+.PHONY: migrations reset-migrations backup run-tasks
 
 HOST     := vps.strub.nu
 SETTINGS ?= handin.settings.development
@@ -39,14 +39,21 @@ reset-migrations: migrations
 	$(MANAGE) showmigrations $(APPNAME)
 
 # --------------------------------------------------------------------
-release: __force__
+run-tasks:
+	$(MANAGE) process_tasks --queue check
+
+# --------------------------------------------------------------------
+release-norestart: __force__
 	rsync -Ravt --delete \
 	  --perms --no-group --chmod=ug=rwX,o=rX \
 	  --exclude='*.pyc' --exclude='__pycache__' \
 	  --exclude='migrations/*.py' \
-	  --exclude='media/' --exclude='autocorrect/' \
+	  --exclude='media/' \
 	  --exclude='*.sqlite3' --exclude='.git*' \
 	  . $(HOST):/opt/handin/handin
+
+# --------------------------------------------------------------------
+release: __force__ release-norestart
 	ssh vps.strub.nu 'sudo -i systemctl stop gunicorn'
 
 # --------------------------------------------------------------------

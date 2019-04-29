@@ -1,14 +1,16 @@
 {% extends 'layout.html' %}
 {% load getitem_filter %}
 
-{% block title %}My uploads{% endblock %}
+{% block title %}Uploads details{% endblock %}
 
 {% block contents %}
 {% if hdns|length %}
 {% with hdn=hdns.0 %}
 <dl class="row">
+  <dt class="sol-sm-3">Student</dt>
+  <dd class="col-sm-9">{{ hdn.user.fullname }}</dd>
   <dt class="col-sm-3">
-    Upload
+    Download
     <a href="{% url 'upload:myupload-dw' the.code the.subcode the.promo index %}">
       <span class="glyphicon glyphicon-download"></span>
     </a>
@@ -21,16 +23,20 @@
   <dt class="col-sm-3">Status</dt>
   <dd class="col-sm-9">
   {% if hdn.status == '' %}
-  <span class="glyphicon glyphicon-time"></span>
+  <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test result
   {% elif hdn.status == 'success' %}
-  <span class="glyphicon glyphicon-ok"></span>
+  <span class="glyphicon glyphicon-ok"></span> test ok
   {% elif hdn.status == 'failure' %}
-  <span class="glyphicon glyphicon-remove"></span>
+  <span class="glyphicon glyphicon-remove"></span> test failure
+  {% elif hdn.status == 'no-test' %}
+  <span class="glyphicon glyphicon-cd"></span> uploaded / no test
+  {% elif hdn.status == 'errored' %}
+  <span class="glyphicon glyphicon-warning-sign"></span> internal error
   {% endif %}
   </dd>
   <dt class="col-sm-3">Log</dt>
   <dd class="col-sm-9">
-  {% if hdnlog %}
+  {% if hdn.log %}
   <pre><code>{{ hdn.log }}</code></pre>
   {% else %}
   <em>No logs</em>

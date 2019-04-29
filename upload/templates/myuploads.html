@@ -6,6 +6,13 @@
 {% block contents %}
 <h2>My uploads</h2>
 
+<p>
+  <span class="glyphicon glyphicon-ok"></span> test ok &mdash;
+  <span class="glyphicon glyphicon-remove"></span> test failure &mdash;
+  <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test &mdash;
+  <span class="glyphicon glyphicon-cd"></span> uploaded / no test
+</p>
+
 <table class="table table-striped">
 <thead>
   <tr>
@@ -28,6 +35,10 @@
     <span class="glyphicon glyphicon-ok"></span>
     {% elif upload.status == 'failure' %}
     <span class="glyphicon glyphicon-remove"></span>
+    {% elif upload.status == 'no-test' %}
+    <span class="glyphicon glyphicon-cd"></span>
+    {% elif upload.status == 'errored' %}
+    <span class="glyphicon glyphicon-warning-sign"></span>
     {% endif %}
     </td>
     <td class="text-center">
