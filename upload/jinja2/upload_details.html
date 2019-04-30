@@ -3,6 +3,8 @@
 {% block title %}Uploads details{% endblock %}
 
 {% block contents %}
+<p class="alert alert-info">Last update: {{ date(now) }}</p>
+
 {% if hdns|length %}
 <dl class="row">
   <dt class="sol-sm-3">Student</dt>

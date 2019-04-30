@@ -57,7 +57,7 @@ $(document).ready(function() {
 <div class="alert alert-danger">You must be authenticated to submit your files</div>
 {% elif handins %}
 <div class="alert alert-info">
-  We have submissions for the following questions:
+  On {{ date(now) }}, we had submissions for the following questions:
   {% for q in handins.keys() | sort %}
   {{ q }}
   {% if handins[q].status == '' %}

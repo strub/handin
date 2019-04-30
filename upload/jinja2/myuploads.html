@@ -5,6 +5,8 @@
 {% block contents %}
 <h2>My uploads - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
 
+<p class="alert alert-info">Last update: {{ date(now) }}</p>
+
 <p>
   <span class="glyphicon glyphicon-ok"></span> test ok &mdash;
   <span class="glyphicon glyphicon-remove"></span> test failure &mdash;
