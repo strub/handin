@@ -1,4 +1,3 @@
-{% load static %}
 <!doctype html>
 <html>
   <head>
@@ -17,7 +16,7 @@
     <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js"
             integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
 
-    <link rel="stylesheet" href="{% static 'css/style.css' %}" />
+    <link rel="stylesheet" href="{{ static('css/style.css') }}" />
   </head>
   <body>
     <nav class="navbar navbar-default navbar-inverse" role="navigation">
@@ -36,26 +35,26 @@
             <li class="dropdown">
               <a href="#" class="dropdown-toggle" data-toggle="dropdown">Quick jump<span class="caret">&nbsp;</span></a>
               <ul class="dropdown-menu" role="menu">
-                {% if perms.upload.admin %}
-                {% if nav.inasgn %}
-                <li><a href="{% url 'upload:uploads_by_users' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by students)</a></li>
-                <li><a href="{% url 'upload:uploads_by_questions' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See uploads (by questions)</a></li>
+                {% if request.user.has_perm('upload', 'admin') %}
+                {% if nav is defined and nav.inasgn %}
+                <li><a href="{{ url('upload:uploads_by_users', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by students)</a></li>
+                <li><a href="{{ url('upload:uploads_by_questions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by questions)</a></li>
                 <li class="divider"> </li>
                 {% endif %}
-                <li><a href="{% url 'upload:assignments' %}">See all assignments</a></li>
+                <li><a href="{{ url('upload:assignments') }}">See all assignments</a></li>
                 <li class="divider"> </li>
                 {% endif %}
-                {% if nav.inasgn %}
-                <li><a href="{% url 'upload:myuploads' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">See my uploads</a></li>
+                {% if nav is defined and nav.inasgn %}
+                <li><a href="{{ url('upload:myuploads', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See my uploads</a></li>
                 {% endif %}
-                {% if nav.inasgn and nav.back %}
+                {% if nav is defined and nav.inasgn and nav.back %}
                 <li class="divider"> </li>
-                <li><a href="{% url 'upload:assignment' nav.inasgn.code nav.inasgn.subcode nav.inasgn.promo %}">Back to assignment</a></li>
+                <li><a href="{{ url('upload:assignment', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">Back to assignment</a></li>
                 {% endif %}
-                {% if nav.oasgn.1 %}
+                {% if nav is defined and nav.oasgn.1 %}
                 <li class="divider"> </li>
                 {% for asgn in nav.oasgn.1 %}
-                <li><a href="{% url 'upload:assignment' nav.inasgn.code asgn nav.inasgn.promo %}">{{ nav.inasgn.code }} - {{ asgn }}</a></li>
+                <li><a href="{{ url('upload:assignment', nav.inasgn.code, asgn, nav.inasgn.promo) }}">{{ nav.inasgn.code }} - {{ asgn }}</a></li>
                 {% endfor %}
                 {% endif %}
                 {% block nav %}{% endblock %}
@@ -64,10 +63,10 @@
           </ul>
           <ul class="nav navbar-nav navbar-right">
           <li class="dropdown">
-            {% if user.is_authenticated %}
-            <a href="#" class="dropdown-toggle" data-toggle="dropdown"><b>{{ user.fullname }}</b><span class="caret">&nbsp;</span></a>
+            {% if request.user.is_authenticated %}
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown"><b>{{ request.user.fullname }}</b><span class="caret">&nbsp;</span></a>
             <ul class="dropdown-menu">
-            <li><a href="{% url 'upload:logout' %}?next={{ request.get_full_path | urlencode }}">Logout</a></li>
+            <li><a href="{{ url('upload:logout') }}?next={{ request.get_full_path() | urlencode }}">Logout</a></li>
             </ul>
             {% else %}
             <a href="#" class="dropdown-toggle" data-toggle="dropdown"><b>Login</b><span class="caret"></span></a>
@@ -75,8 +74,8 @@
             <li>
               <div class="row">
                 <div class="col-md-12">
-                  <form class="form" role="form" method="post" action="{% url 'upload:login' %}" accept-charset="UTF-8" id="login-nav" />
-                  {% csrf_token %}
+                  <form class="form" role="form" method="post" action="{{ url('upload:login') }}" accept-charset="UTF-8" id="login-nav" />
+                  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
                   <div class="form-group">
                     <label class="sr-only" for="username">Email address</label>
                     <input type="input" class="form-control" id="username" name="username" placeholder="Username" required="required" />
@@ -88,7 +87,7 @@
                   <div class="form-group">
                     <button type="submit" class="btn btn-primary btn-block">Sign in</button>
                   </div>
-                  <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+                  <input type="hidden" name="next" value="{{ request.get_full_path() }}" />
                   </form>
                 </div>
               </div>

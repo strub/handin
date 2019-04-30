@@ -59,15 +59,16 @@ class XLDAPBackend(object):
 
             print(e); return None
 
-        user = User(
+        user, _ = User.objects.update_or_create(
             login     = data['login'].lower(),
-            email     = '%s@polytechnique.edu' % (data['login'],),
-            firstname = data['firstname'],
-            lastname  = data['lastname'],
-            ou        = data['ou'],
-            cls       = data['cls'],
+            defaults  = dict(
+                email     = '%s@polytechnique.edu' % (data['login'],),
+                firstname = data['firstname'],
+                lastname  = data['lastname'],
+                ou        = data['ou'],
+                cls       = data['cls'],
+            ),
         )
-        user.save()
 
         return user
 

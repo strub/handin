@@ -1,0 +1,67 @@
+#! /usr/bin/env python3
+
+# --------------------------------------------------------------------
+import sys, os, re, json, csv
+import urllib as ul, urllib.parse, urllib.request
+
+# --------------------------------------------------------------------
+USAGE = 'Usage: %s [CODE] [PROMO] [CSV]'
+#URL   = 'https://vps.strub.nu/groups/%(code)s/%(promo)s/'
+URL   = 'http://localhost:8000/groups/%(code)s/%(promo)s/'
+
+# --------------------------------------------------------------------
+class Object(object):
+    def __init__(self, **kw):
+        super().__init__()
+        self.__dict__.update(kw)
+
+# --------------------------------------------------------------------
+class Error(Exception):
+    pass
+
+# --------------------------------------------------------------------
+def _main():
+    if len(sys.argv)-1 != 3:
+        print(USAGE % (sys.argv[0],), file = sys.stderr)
+        exit(1)
+
+    code, promo, csvname = sys.argv[1:]
+
+    try:
+        dta = []
+
+        try:
+            with open(csvname, 'r', encoding = 'utf-8') as stream:
+                for row in csv.reader(stream, delimiter=';'):
+                    if len(row) != 2 or re.match('^[0-9]+$', row[1]) is None:
+                        raise Error('invalid CSV file')
+                    dta.append(dict(login = row[0], group = int(row[1])))
+        except csv.Error as e:
+            raise Error('malformed CSV file', e)
+        except (OSError, IOError) as e:
+            raise Error('cannot read CSV file', e)
+
+        url = URL % (dict(code  = ul.parse.quote(code),
+                          promo = ul.parse.quote(promo)))
+
+        dta = json.dumps(dta).encode('utf-8')
+        hdr = { 'Content-Type': 'application/json; charset=utf-8' }
+        req = ul.request.Request(url, data = dta, headers = hdr, method = 'PUT')
+
+        try:
+            with ul.request.urlopen(req) as cx:
+                response = cx.read()
+
+        except (ul.error.HTTPError, ul.error.URLError) as e:
+            raise Error('cannot upload groups: %s' % (e,), e)
+
+        sys.stderr.write(response.decode('ascii', errors='surrogateescape'))
+
+    except Error as e:
+        print('error: %s' % (e,), file = sys.stderr)
+        exit(1)
+
+# --------------------------------------------------------------------
+if __name__ == '__main__':
+    _main()
+

@@ -4,6 +4,7 @@ django-cleanup
 django-dbbackup
 django-debug-toolbar
 docker
+jinja2
 jsonschema
 psycopg2
 pygments

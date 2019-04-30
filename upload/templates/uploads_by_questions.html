@@ -1,5 +1,4 @@
 {% extends 'layout.html' %}
-{% load getitem_filter %}
 
 {% block title %}Uploads{% endblock %}
 
@@ -18,19 +17,17 @@ number of students that submitted at last once in that assigment.</p>
 </thead>
 <tbody>
 {% for q in qst %}
-{% with p=pct|get_item:q %}
   <tr>
     <td>Q.{{ q }}</td>
     <td>
     <div class="progress progress-thin">
       <div class="progress-bar progress-bar-warning progress-bar-striped"
-           role="progressbar" style="width:{% widthratio p 1 100 %}%">
-        {% widthratio p 1 100 %}%
+           role="progressbar" style="width:{{ (100 * pct[q]) | int }}%">
+        {{ '%.2f' % (100 * pct[q]) }}%
       </div>
     </div>
     </td>
   </tr>
-{% endwith %}
 {% endfor %}
 </tbody>
 </table>

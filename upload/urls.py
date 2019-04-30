@@ -8,8 +8,11 @@ app_name = 'upload'
 
 urlpatterns = [
     path('', views.assignments, name='assignments'),
-    path('login/', views.login, name='login'),
+
+    path('login/' , views.login , name='login' ),
     path('logout/', views.logout, name='logout'),
+
+    path('groups/<code>/<int:promo>/', views.upload_groups),
 
     path('agns/<code>/<subcode>/<int:promo>/',
              views.Assignment.as_view(), name='assignment'),

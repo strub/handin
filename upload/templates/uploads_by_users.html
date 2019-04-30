@@ -1,5 +1,4 @@
 {% extends 'layout.html' %}
-{% load getitem_filter %}
 
 {% block title %}Uploads{% endblock %}
 
@@ -7,14 +6,29 @@
 <h2>Uploads (by students)</h2>
 
 {% if uploads %}
-<p class="alert alert-info"># of submissions: {{ uploads|length }}</p>
-
 <p>
   <span class="glyphicon glyphicon-ok"></span> test ok &mdash;
   <span class="glyphicon glyphicon-remove"></span> test failure &mdash;
   <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test &mdash;
   <span class="glyphicon glyphicon-cd"></span> uploaded / no test
 </p>
+
+<div class="panel-group" id="accordion">
+
+{% for group in groups %}
+{% set guploads=uploads[group] %}
+
+<div class="panel panel-default">
+<div class="panel-heading">
+  <h4 class="panel-title">
+    <a data-toggle="collapse" data-parent="#accordion" href="#collapse-{{ group }}">
+    {% if group %}Group {{ group }}{% else %}Uncategorized{% endif %}
+    </a>
+  </h4>
+</div>
+
+<div id="collapse-{{ group }}" class="panel-collapse collapse">
+<div class="panel-body">
 
 <table class="table table-striped">
 <thead>
@@ -26,15 +40,15 @@
   </tr>
 </thead>
 <tbody>
-{% for login in logins %}
-{% with user=users|get_item:login %}
-{% with upload=uploads|get_item:login %}
+{% for login in guploads.keys()|sort %}
+{% set user   = users[login] %}
+{% set upload = guploads[login] %}
   <tr>
-    <td>{{ user.fullname }}</td>
+    <td>{{ user.1 }}</td>
     {% for q in qst %}
     <td class="text-center text-nowrap">
-    {% if upload.1|get_item:q %}
-    {% with handin=upload.1|get_item:q|first %}
+    {% if upload[q] %}
+    {% set handin = upload[q].0 %}
     {% if handin.status == '' %}
     <span class="glyphicon glyphicon-time text-warning"></span>
     {% elif handin.status == 'success' %}
@@ -46,31 +60,46 @@
     {% elif handin.status == 'errored' %}
     <span class="glyphicon glyphicon-warning-sign text-warning"></span>
     {% endif %}
-    <sub><a target="_blank" href="{% url 'upload:download_upload' the.code the.subcode the.promo login q %}">
+    <sub><a target="_blank" href="{{ url('upload:download_upload', the.code, the.subcode, the.promo, login, q) }}">
       <i class="glyphicon glyphicon glyphicon-download"></i>
     </a></sub>
-    <sub><a href="{% url 'upload:upload_details_by_login' the.code the.subcode the.promo login q %}">
+    <sub><a href="{{ url('upload:upload_details_by_login', the.code, the.subcode, the.promo, login, q) }}">
       <i class="glyphicon glyphicon glyphicon-circle-arrow-right"></i>
     </a></sub>
-    {% endwith %}
     {% endif %}
     </td>
     {% endfor %}
   </tr>
-{% endwith %}
-{% endwith %}
 {% endfor %}
 </tbody>
-<thead>
-  <tr>
-    <th>Total</th>
-    {% for q in qst %}
-    <th class="text-center">{% widthratio pct|get_item:q 1 100 %} %</th>
-    {% endfor %}
-  </tr>
-</thead>
 </table>
+
+</div>
+</div>
+</div>
+{% endfor %}
+
+</div>
 {% else %}
 <div class="alert alert-warning">No uploads</div>
 {% endif %}
+
+<script type="text/javascript">
+$(function() {
+  $('.panel-heading a').click(function(e) {
+    var h = $(this).attr('href').match(/^#collapse-(.+)$/);
+    if (h != null) location.hash = h[1];
+  });
+
+  var mtch = window.location.hash.match(/^#(\d+|None)$/);
+
+  if (mtch != null) {
+    var tgt = $(('#collapse-' + mtch[1]) + '.collapse');
+
+    tgt.collapse({ 'toggle': true, 'parent': '#accordion' });
+    $('html, body').animate({ scrollTop: tgt.offset().top }, 400);
+  }
+});
+</script>
+
 {% endblock %}

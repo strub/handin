@@ -54,7 +54,8 @@ release-norestart: __force__
 
 # --------------------------------------------------------------------
 release: __force__ release-norestart
-	ssh vps.strub.nu 'sudo -i systemctl stop gunicorn'
+	ssh vps.strub.nu 'sudo -i systemctl restart gunicorn'
+	ssh vps.strub.nu 'sudo -i systemctl restart process_tasks'
 
 # --------------------------------------------------------------------
 backup: __force__

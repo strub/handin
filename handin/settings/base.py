@@ -40,6 +40,16 @@ ROOT_URLCONF = 'handin.urls'
 # Templates 
 TEMPLATES = [
     {
+        'BACKEND': 'django.template.backends.jinja2.Jinja2',
+        'DIRS': [],
+        'APP_DIRS': True,
+        'NAME': 'jinja',
+        'OPTIONS': {
+            'environment': 'handin.jinja2.environment',
+        },
+    },
+
+    {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
         'DIRS': [],
         'APP_DIRS': True,
@@ -94,3 +104,23 @@ MAX_ATTEMPTS = 4
 MAX_RUN_TIME = 300
 BACKGROUND_TASK_RUN_ASYNC = True
 BACKGROUND_TASK_ASYNC_THREADS = 4
+
+# --------------------------------------------------------------------
+# Logging
+# 
+# LOGGING = {
+#     'version': 1,
+#     'disable_existing_loggers': False,
+#     'handlers': {
+#         'console': {
+#             'level': 'DEBUG',
+#             'class': 'logging.StreamHandler',
+#         }
+#     },
+#     'loggers': {
+#         'django.db.backends': {
+#             'handlers': ['console'],
+#             'level': 'DEBUG',
+#         },
+#     }
+# }

@@ -6,7 +6,7 @@
 {% if assignments %}
 <ul>
 {% for the in assignments %}
-  <li><a href="{{ the.get_absolute_url }}">{{ the }}</a></li>
+  <li><a href="{{ the.get_absolute_url() }}">{{ the }}</a></li>
 {% endfor %}
 </ul>
 {% else %}

@@ -1,5 +1,4 @@
 {% extends 'layout.html' %}
-{% load getitem_filter %}
 
 {% block title %}My uploads{% endblock %}
 
@@ -23,29 +22,28 @@
 </thead>
 <tbody>
 {% for q in qst %}
-{% with upload=rqs|get_item:q %}
   <tr>
     <td>{{ q }}</td>
-    {% if upload %}
-    <td>{{ upload.date }}</td>
+    {% if rqs[q] %}
+    <td>{{ rqs[q].date }}</td>
     <td>
-    {% if upload.status == '' %}
+    {% if rqs[q].status == '' %}
     <span class="glyphicon glyphicon-time"></span>
-    {% elif upload.status == 'success' %}
+    {% elif rqs[q].status == 'success' %}
     <span class="glyphicon glyphicon-ok"></span>
-    {% elif upload.status == 'failure' %}
+    {% elif rqs[q].status == 'failure' %}
     <span class="glyphicon glyphicon-remove"></span>
-    {% elif upload.status == 'no-test' %}
+    {% elif rqs[q].status == 'no-test' %}
     <span class="glyphicon glyphicon-cd"></span>
-    {% elif upload.status == 'errored' %}
+    {% elif rqs[q].status == 'errored' %}
     <span class="glyphicon glyphicon-warning-sign"></span>
     {% endif %}
     </td>
     <td class="text-center">
-      <a href="{% url 'upload:myupload-dw' the.code the.subcode the.promo q %}">
+      <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, q) }}">
         <span class="glyphicon glyphicon-download"></span>
       </a>
-      <a href="{% url 'upload:myupload' the.code the.subcode the.promo q %}">
+      <a href="{{ url('upload:myupload', the.code, the.subcode, the.promo, q) }}">
         <span class="glyphicon glyphicon-circle-arrow-right"></span>
       </a>
     </td>
@@ -55,7 +53,6 @@
     <td></td>
     {% endif %}
   </tr>
-{% endwith %}
 {% endfor %}
 </tbody>
 </table>

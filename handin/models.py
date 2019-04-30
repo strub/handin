@@ -13,9 +13,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     login     = models.CharField(max_length = 256, primary_key = True)
     firstname = models.CharField(max_length = 256)
     lastname  = models.CharField(max_length = 256)
-    email     = models.EmailField(max_length = 256)
+    email     = models.EmailField(max_length = 256, db_index = True)
     ou        = models.CharField(max_length = 256)
-    cls       = models.CharField(max_length = 256)
+    cls       = models.CharField(max_length = 256, db_index = True)
     is_active = models.BooleanField(default = True)
 
     objects = UserManager()

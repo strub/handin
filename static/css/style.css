@@ -485,3 +485,11 @@ table td {
   margin: 0px;
 }
 
+/* Code */
+pre.console {
+  font-size: 75%;
+  font-weight: bold;
+  color: white;
+  background-color: black;
+}
+

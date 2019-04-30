@@ -1,7 +1,8 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile
-import codecs, chardet, shutil, uuid as muuid, docker
+import codecs, chardet, shutil, uuid as muuid, docker, math
 from   itertools import groupby
+from   collections import namedtuple
 
 from   django.conf import settings
 import django.http as http
@@ -10,7 +11,8 @@ import django.urls as durls
 import django.utils.decorators as udecorators
 from   django.views.decorators import http as dhttp
 from   django.views.decorators import csrf as dcsrf
-from   django.db.models import Max, FilteredRelation
+import django.db as db
+from   django.db.models import Max, FilteredRelation, Prefetch
 import django.contrib.auth as dauth
 from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
@@ -26,6 +28,26 @@ from . import models
 
 # --------------------------------------------------------------------
 ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
+ROOT  = os.path.dirname(__file__)
+
+# --------------------------------------------------------------------
+def pandoc_gen(value, template):
+    import pypandoc
+
+    template = os.path.join(ROOT, 'pandoc', template + '.html')
+
+    args = dict(
+        to         = 'html5+smart+markdown_in_html_blocks',
+        format     = 'md',
+        extra_args = [
+            '--base-header-level=2',
+            '--mathjax', '--standalone',
+            '--toc', '--toc-depth=4',
+            '--template=%s' % (template,),
+        ]
+    )
+
+    return pypandoc.convert_text(value, **args)
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -60,6 +82,18 @@ SCHEMA = dict(
         )
     ),
     required = ['code', 'subcode', 'promo', 'contents', 'resources'],
+)
+
+GSCHEMA = dict(
+  type  = 'array',
+  items = dict(
+    type       = 'object',
+    properties = dict(
+        login  = dict(type = 'string', pattern = '^[a-zA-Z0-9-_.]+$'),
+        group  = dict(type = 'number', minimum = 1),
+    ),
+    required   = ['login', 'group'],
+  ),
 )
 
 # --------------------------------------------------------------------
@@ -282,6 +316,60 @@ def logout(request):
     return http.HttpResponseRedirect(next)
 
 # --------------------------------------------------------------------
+@dhttp.require_http_methods(['PUT'])
+@dcsrf.csrf_exempt
+def upload_groups(request, code, promo):
+    import json, jsonschema, mimeparse as mp, base64, binascii
+
+    mtype, msub, mdata = mp.parse_mime_type(request.content_type)
+
+    if (mtype, msub) != ('application', 'json'):
+        return http.HttpResponseBadRequest()
+
+    charset = mdata.get('charset', 'utf-8')
+
+    try:
+        body = request.body.decode(charset)
+        jso  = json.loads(body)
+
+        jsonschema.validate(jso, GSCHEMA)
+
+    except (json.decoder.JSONDecodeError,
+            jsonschema.exceptions.ValidationError,
+            UnicodeDecodeError) as e:
+        return http.HttpResponseBadRequest()
+
+    gname  = '%s:%d' % (code, promo)
+    groups = set([x['group'] for x in jso])
+
+    with db.transaction.atomic():
+        dauth.models.Group.objects \
+            .filter(name__startswith = gname + ':') \
+            .delete()
+
+        groups = {
+            x: dauth.models.Group.objects.get_or_create(
+                   name = '%s:%d' % (gname, x)
+               )[0] for x in groups
+        }
+
+        for g1 in jso:
+            print(g1)
+            user, _ = dauth.get_user_model().objects.get_or_create(
+                login    = g1['login'],
+                defaults = dict(
+                    firstname = '<imported>',
+                    lastname  = '<imported>',
+                    email     = 'imported@example.com',
+                    ou        = 'cn=imported',
+                    cls       = 'Etudiants',
+                ),
+            )
+            user.groups.add(groups[g1['group']]); user.save()
+
+    return http.HttpResponse("OK\r\n", content_type = 'text/plain')
+
+# --------------------------------------------------------------------
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
@@ -293,43 +381,74 @@ def assignments(request):
     return dutils.render(request, 'assignments.html', context)
 
 # --------------------------------------------------------------------
+SQL_GROUPS = r"""
+select u.login as login, g.name as gname
+  from       handin_user as u
+  inner join handin_user_groups as ug
+             on u.login = ug.user_id
+  inner join auth_group as g
+             on g.id = ug.group_id
+  where g.name like %s"""
+
+SQL_HANDINS = r"""
+select u.login as login,
+       (u.firstname || ' ' || u.lastname) as fullname,
+       h."index" as idx,
+       h.status as status, h.date as date
+  from       upload_handin as h
+  inner join handin_user as u
+             on h.user_id = u.login
+  where h.assignment_id = %s
+    and u.cls = 'Etudiants'
+
+  order by date desc
+"""
+
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def uploads_by_users(request, code, subcode, promo):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
-    qst = questions_of_contents(the.contents)
+    key   = dict(code=code, subcode=subcode, promo=promo)
+    the   = dutils.get_object_or_404(models.Assignment, **key)
+    qst   = questions_of_contents(the.contents)
+    gname = '%s:%d' % (code, promo)
 
-    lst = models.HandIn.objects \
-        .filter(assignment = the) \
-        .select_related('user') \
-        .order_by('user__login', 'index', '-date') \
-        .all()
+    with db.connection.cursor() as cursor:
+        cursor.execute(SQL_HANDINS, [the.pk])
+        nt  = namedtuple('Handin', [c[0] for c in cursor.description])
+        hdn = [nt(*x) for x in cursor.fetchall()]
 
-    users = dict()
-    for x in lst:
-        if x.user.login not in users:
-            users[x.user.login] = x.user
+        cursor.execute(SQL_GROUPS, [gname + ':%'])
+        nt  = namedtuple('Group', [c[0] for c in cursor.description])
+        grp = [nt(*x) for x in cursor.fetchall()]
 
+    groups  = dict()
+
+    for entry in grp:
+        groups.setdefault(entry.login, set()) \
+              .add(int(entry.gname[len(gname)+1:]))
+    groups = { k: min(v) for k, v in groups.items() }
+
+    users   = dict()
     uploads = dict()
-    for x in lst:
-        if x.user.login not in uploads:
-            uploads[x.user.login] = (x.user, dict())
-        uploads[x.user.login][1].setdefault(x.index, []).append(x)
 
-    pct = { x: 0 for x in qst }
+    for x in hdn:
+        if x.login not in users:
+            users[x.login] = (x.login, x.fullname)
 
-    for _, handins in uploads.values():
-        for i in handins.keys():
-            if i in pct: pct[i] += 1
-    if len(users) > 0:
-        pct = { x: y / float(len(users)) for x, y in pct.items() }
+        ugroup = groups.get(x.login, None)
+        gdict  = uploads.setdefault(ugroup, dict())
+
+        if x.login not in gdict:
+            gdict[x.login] = dict()
+        gdict[x.login].setdefault(x.idx, []).append(x)
 
     context = dict(
-        the = the, qst = qst, users = users, pct = pct,
-        logins  = sorted(users.keys(), key = lambda x : x.lower()),
-        uploads = uploads, nav = _build_nav(the))
+        the    = the, qst = qst, uploads = uploads, users = users,
+        groups = sorted(uploads.keys(), key = \
+                            lambda x : math.inf if x is None else x),
+        nav    = _build_nav(the))
+
     return dutils.render(request, 'uploads_by_users.html', context)
 
 # --------------------------------------------------------------------
@@ -342,8 +461,8 @@ def uploads_by_questions(request, code, subcode, promo):
     qst = questions_of_contents(the.contents)
 
     lst = models.HandIn.objects \
-        .filter(assignment = the) \
         .select_related('user') \
+        .filter(assignment = the, user__cls = 'Etudiants') \
         .order_by('user__login', 'index', '-date') \
         .all()
 
@@ -533,8 +652,6 @@ class Assignment(views.generic.TemplateView):
         ores.save()
 
     def get_context_data(self, code, subcode, promo, *args, **kw):
-        from .templatetags.pandoc_filter import pandoc_gen
-
         ctx = super().get_context_data(*args, **kw)
         key = dict(code=code, subcode=subcode, promo=promo)
         the = dutils.get_object_or_404(models.Assignment, **key)
@@ -656,7 +773,7 @@ class Assignment(views.generic.TemplateView):
         for extra in self.EXTRA:
             cache.delete(self.get_cache_key(code, subcode, promo, extra))
 
-        return http.HttpResponse("OK\r\n")
+        return http.HttpResponse("OK\r\n", content_type = 'text/plain')
 
 # --------------------------------------------------------------------
 @dhttp.require_GET

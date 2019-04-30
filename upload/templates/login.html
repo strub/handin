@@ -5,7 +5,7 @@
 {% block contents %}
 <div class="login-form">
   <form class="form" role="form" method="post" accept-charset="UTF-8">
-    {% csrf_token %}
+    <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
     <h2 class="text-center">Log in</h2>       
     <div class="form-group">
       <input type="text" class="form-control" name="username" placeholder="Username" required="required">
