@@ -13,10 +13,11 @@ body {
   margin: auto;
   background: #fefefe;
   padding: 0px 50px;
+  padding-top: 70px;
 }
 
 div.handin {
-  max-width: 840px;
+  max-width: 940px;
 }
 
 a {
@@ -24,9 +25,11 @@ a {
   text-decoration: none;
 }
 
+/*
 a:visited {
   color: #0b0080;
 }
+*/
 
 a:hover {
   color: #06e;
@@ -485,6 +488,12 @@ table td {
   margin: 0px;
 }
 
+.progress-bar {
+  overflow-x: visible;
+  white-space: nowrap;
+  color: black;
+}
+
 /* Code */
 pre.console {
   font-size: 75%;
@@ -493,3 +502,19 @@ pre.console {
   background-color: black;
 }
 
+/* Uploads table */
+table.uploads tbody td {
+  padding: 4px 2px !important;
+}
+
+table.uploads tbody td:first-child {
+  padding-left: 10px !important;
+}
+
+table.uploads .olinks {
+  opacity: 0.5;
+}
+
+table.uploads .olinks:hover {
+  opacity: 1.0;
+}

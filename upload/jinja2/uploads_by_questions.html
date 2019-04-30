@@ -17,13 +17,14 @@ number of students that submitted at last once in that assigment.</p>
 </thead>
 <tbody>
 {% for q in qst %}
+{% set pct = stats[q] / nusers if nusers else 0 %}
   <tr>
     <td>Q.{{ q }}</td>
     <td>
     <div class="progress progress-thin">
       <div class="progress-bar progress-bar-warning progress-bar-striped"
-           role="progressbar" style="width:{{ (100 * pct[q]) | int }}%">
-        {{ '%.2f' % (100 * pct[q]) }}%
+           role="progressbar" style="width:{{ (100 * pct) | int }}%">
+        {{ '%.2f' % (100 * pct) }}% ({{ stats[q] }} / {{ nusers }})
       </div>
     </div>
     </td>

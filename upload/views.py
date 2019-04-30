@@ -487,10 +487,11 @@ def uploads_by_questions(request, code, subcode, promo):
         .select_related('user') \
         .filter(assignment = the, user__cls = 'Etudiants') \
         .order_by('user__login', 'index', '-date') \
+        .defer('log') \
         .all()
 
     nusers  = len(set([x.user.login for x in lst]))
-    pct     = { x: 0 for x in qst }
+    stats   = { x: 0 for x in qst }
     uploads = dict()
 
     for x in lst:
@@ -500,11 +501,9 @@ def uploads_by_questions(request, code, subcode, promo):
 
     for _, handins in uploads.values():
         for i in handins.keys():
-            if i in pct: pct[i] += 1
-    if nusers > 0:
-        pct = { x: y / float(nusers) for x, y in pct.items() }
+            if i in stats: stats[i] += 1
     context = dict(
-        the = the, qst = qst, nusers = nusers, pct = pct,
+        the = the, qst = qst, nusers = nusers, stats = stats,
         nav = _build_nav(request.user, the))
     return dutils.render(request, 'uploads_by_questions.html', context)
 
@@ -612,7 +611,7 @@ def download_upload(request, code, subcode, promo, login, index):
 @dhttp.require_POST
 @udecorators.method_decorator(dcsrf.csrf_exempt) # FIXME
 def handin(request, code, subcode, promo, index):
-    the = get_assigment(request, code, subcode, promo)
+    the = get_assignment(request, code, subcode, promo)
 
     if 'file' in request.FILES:
         with db.transaction.atomic():
@@ -692,7 +691,7 @@ class Assignment(views.generic.TemplateView):
                 index = int(match.group(1))
                 data  = '<div id="submit-%d" />' % (index,)
                 if index in handins:
-                    date  = handins[index]
+                    date  = handins[index]['date']
                     date  = date.astimezone(utils.timezone.get_current_timezone())
                     date  = date.strftime('%B %d, %Y (%H:%M:%S)')
                     data += LAST_SUBMIT % (utils.html.escape(date),)
@@ -706,13 +705,16 @@ class Assignment(views.generic.TemplateView):
 
         handins = None
         if self.request.user.is_authenticated:
-            handins = models.HandIn.objects \
+            handins = dict()
+            for hdn in models.HandIn.objects \
                 .filter(assignment = the, user = self.request.user) \
-                .values('index') \
-                .annotate(lastdate = Max('date')) \
-                .values('index', 'lastdate') \
-                .all()[:]
-            handins = { int(x['index']): x['lastdate'] for x in handins }
+                .values('index', 'status', 'date') \
+                .all():
+
+                handins.setdefault(hdn['index'], []).append(hdn)
+
+            handins = { k: max(v, key = lambda v : v['date']) \
+                            for k, v in handins.items() }
 
             text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match(handins), text)
         else:

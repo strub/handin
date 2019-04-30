@@ -70,6 +70,7 @@ class TestSuiteRunner(object):
 
 # --------------------------------------------------------------------
 def _main():
+    os.environ['JAVA_TOOL_OPTIONS'] = '-Dfile.encoding=UTF8'
     if len(sys.argv)-1 != 2:
         exit(1)
     try:

@@ -30,7 +30,7 @@
 <div id="collapse-{{ group }}" class="panel-collapse collapse">
 <div class="panel-body">
 
-<table class="table table-striped">
+<table class="table table-striped uploads">
 <thead>
   <tr>
     <th>Name</th>
@@ -44,7 +44,7 @@
 {% set user   = users[login] %}
 {% set upload = guploads[login] %}
   <tr>
-    <td>{{ user.1 }}</td>
+    <td>{{ user.1 | truncate(20, True) }}</td>
     {% for q in qst %}
     <td class="text-center text-nowrap">
     {% if upload[q] %}
@@ -60,12 +60,14 @@
     {% elif handin.status == 'errored' %}
     <span class="glyphicon glyphicon-warning-sign text-warning"></span>
     {% endif %}
-    <sub><a target="_blank" href="{{ url('upload:download_upload', the.code, the.subcode, the.promo, login, q) }}">
+    <span class="small olinks">
+    <a target="_blank" href="{{ url('upload:download_upload', the.code, the.subcode, the.promo, login, q) }}">
       <i class="glyphicon glyphicon glyphicon-download"></i>
-    </a></sub>
-    <sub><a href="{{ url('upload:upload_details_by_login', the.code, the.subcode, the.promo, login, q) }}">
+    </a>
+    <a target="_blank" href="{{ url('upload:upload_details_by_login', the.code, the.subcode, the.promo, login, q) }}">
       <i class="glyphicon glyphicon glyphicon-circle-arrow-right"></i>
-    </a></sub>
+    </a>
+    </span>
     {% endif %}
     </td>
     {% endfor %}
