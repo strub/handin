@@ -1,15 +1,13 @@
 {% extends 'layout.html' %}
 
-{% block title %}Uploads details{% endblock %}
+{% block title %}My uploads{% endblock %}
 
 {% block contents %}
 {% if hdns|length %}
 <dl class="row">
-  <dt class="sol-sm-3">Student</dt>
-  <dd class="col-sm-9">{{ hdns.0.user.fullname }}</dd>
   <dt class="col-sm-3">
     Download
-    <a href="{{ url('upload:download_upload', the.code, the.subcode, the.promo, hdns.0.user.login, index) }}">
+    <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, index) }}">
       <span class="glyphicon glyphicon-download"></span>
     </a>
   </dt>
@@ -17,7 +15,7 @@
     {{ the.code }} - {{ the.subcode }} - {{ index }} - #{{ hdns|length }}
   </dd>
   <dt class="col-sm-3">Submission date</dt>
-  <dd class="col-sm-9">{{ hdns.0.date }}</dd>
+  <dd class="col-sm-9">{{ date(hdns.0.date) }}</dd>
   <dt class="col-sm-3">Status</dt>
   <dd class="col-sm-9">
   {% if hdns.0.status == '' %}

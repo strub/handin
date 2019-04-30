@@ -26,6 +26,8 @@ import background_task as bt
 
 from . import models
 
+from handin.middleware import eredirect
+
 # --------------------------------------------------------------------
 ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
 ROOT  = os.path.dirname(__file__)
@@ -69,6 +71,7 @@ SCHEMA = dict(
         code        = dict(type = 'string', pattern = REIDENT, minLength = 1),
         subcode     = dict(type = 'string', pattern = REIDENT, minLength = 1),
         promo       = dict(type = 'number', minimum = 1794),
+        start       = dict(type = 'string', format = 'date'),
         contents    = dict(type = 'string'),
         resources   = RSCHEMA,
         autocorrect = dict(
@@ -81,7 +84,7 @@ SCHEMA = dict(
             required = ['forno', 'files', 'extra'],
         )
     ),
-    required = ['code', 'subcode', 'promo', 'contents', 'resources'],
+    required = ['code', 'subcode', 'promo', 'start', 'contents', 'resources'],
 )
 
 GSCHEMA = dict(
@@ -124,11 +127,32 @@ def questions_of_contents(contents):
     return sorted([int(x) for x in qst])
 
 # --------------------------------------------------------------------
-def _build_nav(the, back = True):
+def can_access_assignment(user, the):
+    if user.has_perm('upload', 'admin'):
+        return True
+    return the.start <= dt.datetime.now().date()
+
+# --------------------------------------------------------------------
+def get_assignment(request, code, subcode, promo):
+    the = models.Assignment.objects.get(code=code, subcode=subcode, promo=promo)
+    if the is None: raise http.Http404
+    if not can_access_assignment(request.user, the):
+        if not request.user.is_authenticated:
+            raise eredirect('%s?%s' % (
+                dutils.reverse('upload:login'),
+                utils.http.urlencode(dict(next = the.get_absolute_url()))
+            ))
+    return the
+
+# --------------------------------------------------------------------
+def _build_nav(user, the, back = True):
     oth = models.Assignment.objects \
                 .filter(code=the.code, promo=the.promo) \
-                .order_by('subcode').values('subcode')
-    oth = [x['subcode'] for x in oth]
+                .order_by('subcode') \
+                .defer('contents') \
+                .all()
+    oth = [x for x in oth if can_access_assignment(user, x)]
+    oth = [x.subcode for x in oth]
     return dict(oasgn = (the, oth), inasgn = the, back = back)
 
 # --------------------------------------------------------------------
@@ -231,6 +255,7 @@ def _defer_check_internal(uuid):
                 detach  = True , stream      = False,
                 remove  = True , auto_remove = True ,
                 stdout  = True , stderr      = True ,
+                network_disabled = True,
                 volumes = {
                     os.path.realpath(workdir): \
                         dict(bind = '/opt/handin/user/src', mode = 'rw'),
@@ -408,8 +433,7 @@ select u.login as login,
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def uploads_by_users(request, code, subcode, promo):
-    key   = dict(code=code, subcode=subcode, promo=promo)
-    the   = dutils.get_object_or_404(models.Assignment, **key)
+    the   = get_assignment(request, code, subcode, promo)
     qst   = questions_of_contents(the.contents)
     gname = '%s:%d' % (code, promo)
 
@@ -447,7 +471,7 @@ def uploads_by_users(request, code, subcode, promo):
         the    = the, qst = qst, uploads = uploads, users = users,
         groups = sorted(uploads.keys(), key = \
                             lambda x : math.inf if x is None else x),
-        nav    = _build_nav(the))
+        nav    = _build_nav(request.user, the))
 
     return dutils.render(request, 'uploads_by_users.html', context)
 
@@ -456,8 +480,7 @@ def uploads_by_users(request, code, subcode, promo):
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def uploads_by_questions(request, code, subcode, promo):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
     qst = questions_of_contents(the.contents)
 
     lst = models.HandIn.objects \
@@ -481,7 +504,8 @@ def uploads_by_questions(request, code, subcode, promo):
     if nusers > 0:
         pct = { x: y / float(nusers) for x, y in pct.items() }
     context = dict(
-        the = the, qst = qst, nusers = nusers, pct = pct, nav = _build_nav(the))
+        the = the, qst = qst, nusers = nusers, pct = pct,
+        nav = _build_nav(request.user, the))
     return dutils.render(request, 'uploads_by_questions.html', context)
 
 # --------------------------------------------------------------------
@@ -490,8 +514,7 @@ def uploads_by_questions(request, code, subcode, promo):
 @dhttp.require_GET
 def upload_details_by_login(request, code, subcode, promo, login, index):
     user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
-    key  = dict(code=code, subcode=subcode, promo=promo)
-    the  = dutils.get_object_or_404(models.Assignment, **key)
+    the  = get_assignment(request, code, subcode, promo)
     qst  = questions_of_contents(the.contents)
 
     if index not in qst:
@@ -501,7 +524,8 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
                 .filter(user = user, assignment = the, index = index) \
                 .order_by('-date').all()[:]
 
-    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
+    context = dict(the = the, index = index, hdns = hdn,
+                   nav = _build_nav(request.user, the))
 
     return dutils.render(request, 'upload_details.html', context)
 
@@ -509,8 +533,7 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
 @login_required
 @dhttp.require_GET
 def myuploads(request, code, subcode, promo):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
     qst = questions_of_contents(the.contents)
     rqs = models.HandIn.objects \
                 .filter(user = request.user, assignment = the) \
@@ -520,7 +543,8 @@ def myuploads(request, code, subcode, promo):
 
     for q in qst: rqs.setdefault(q, None)
 
-    ctx = dict(the = the, rqs = rqs, qst = qst, nav = _build_nav(the))
+    ctx = dict(the = the, rqs = rqs, qst = qst,
+               nav = _build_nav(request.user, the))
 
     return dutils.render(request, 'myuploads.html', ctx)
 
@@ -528,8 +552,7 @@ def myuploads(request, code, subcode, promo):
 @login_required
 @dhttp.require_GET
 def myupload_details(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
     qst = questions_of_contents(the.contents)
 
     if index not in qst:
@@ -539,7 +562,8 @@ def myupload_details(request, code, subcode, promo, index):
                 .filter(user = request.user, assignment = the, index = index) \
                 .order_by('-date').all()[:]
 
-    context = dict(the = the, index = index, hdns = hdn, nav = _build_nav(the))
+    context = dict(the = the, index = index, hdns = hdn,
+                   nav = _build_nav(request.user, the))
 
     return dutils.render(request, 'myupload_details.html', context)
 
@@ -547,8 +571,7 @@ def myupload_details(request, code, subcode, promo, index):
 @login_required
 @dhttp.require_GET
 def download_myupload(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
     qst = questions_of_contents(the.contents)
 
     if index not in qst:
@@ -570,8 +593,7 @@ def download_myupload(request, code, subcode, promo, index):
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def download_upload(request, code, subcode, promo, login, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
 
     handin = models.HandIn.objects \
         .filter(assignment = the, index = index, user__login = login) \
@@ -590,8 +612,7 @@ def download_upload(request, code, subcode, promo, login, index):
 @dhttp.require_POST
 @udecorators.method_decorator(dcsrf.csrf_exempt) # FIXME
 def handin(request, code, subcode, promo, index):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assigment(request, code, subcode, promo)
 
     if 'file' in request.FILES:
         with db.transaction.atomic():
@@ -653,8 +674,7 @@ class Assignment(views.generic.TemplateView):
 
     def get_context_data(self, code, subcode, promo, *args, **kw):
         ctx = super().get_context_data(*args, **kw)
-        key = dict(code=code, subcode=subcode, promo=promo)
-        the = dutils.get_object_or_404(models.Assignment, **key)
+        the = get_assignment(self.request, code, subcode, promo)
 
         text   = cache.get(self.get_cache_key(code, subcode, promo, 'text'  ))
         header = cache.get(self.get_cache_key(code, subcode, promo, 'header'))
@@ -699,7 +719,7 @@ class Assignment(views.generic.TemplateView):
             text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)
 
         ctx['the'     ] = the
-        ctx['nav'     ] = _build_nav(the, back = False)
+        ctx['nav'     ] = _build_nav(self.request.user, the, back = False)
         ctx['handins' ] = handins
         ctx['contents'] = dict(header = header, text = text)
 
@@ -751,7 +771,7 @@ class Assignment(views.generic.TemplateView):
         acorrect = jso.get('autocorrect', None)
 
         key = dict(code=code, subcode=subcode, promo=promo)
-        dfl = dict(contents = jso['contents'], tests = [])
+        dfl = dict(start = jso['start'], contents = jso['contents'], tests = [])
 
         if acorrect is not None:
             dfl['tests'] = acorrect['forno']
@@ -778,8 +798,7 @@ class Assignment(views.generic.TemplateView):
 # --------------------------------------------------------------------
 @dhttp.require_GET
 def resource(request, code, subcode, promo, name):
-    key = dict(code=code, subcode=subcode, promo=promo)
-    the = dutils.get_object_or_404(models.Assignment, **key)
+    the = get_assignment(request, code, subcode, promo)
     key = dict(assignment=the, name=name, namespace='resource')
     the = dutils.get_object_or_404(models.Resource, **key)
     rep = http.FileResponse(the.contents.open(), content_type = the.ctype)

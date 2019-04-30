@@ -8,6 +8,12 @@
 
 {% block contents %}
 
+{% if the.start > now.date() %}
+<div class="alert alert-warning">
+  This assignment will be published on {{ the.start.strftime('%B %d, %Y') }}.
+</div>
+{% endif %}
+
 <script>
 function prepare_input_file() {
   $('.input-file').before(

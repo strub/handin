@@ -25,7 +25,7 @@
   <tr>
     <td>{{ q }}</td>
     {% if rqs[q] %}
-    <td>{{ rqs[q].date }}</td>
+    <td>{{ date(rqs[q].date) }}</td>
     <td>
     {% if rqs[q].status == '' %}
     <span class="glyphicon glyphicon-time"></span>

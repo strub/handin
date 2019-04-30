@@ -2,7 +2,7 @@
 
 # --------------------------------------------------------------------
 import sys, os, glob, re, base64, json, configparser as cp
-import urllib as ul, urllib.parse, urllib.request
+import datetime as dt, urllib as ul, urllib.parse, urllib.request
 
 # --------------------------------------------------------------------
 USAGE = 'Usage: %s [FILE.ini]'
@@ -43,6 +43,10 @@ def validate_forno(forno):
         return [int(x) for x in forno.split()]
     except ValueError:
         raise Error('invalid seq-no list: %s' % (forno,))
+
+# --------------------------------------------------------------------
+def validate_date(date):
+    return dt.datetime.strptime(date, '%Y-%m-%d').date()
 
 # --------------------------------------------------------------------
 def validate_resources(resources, base):
@@ -87,6 +91,7 @@ def read_options(filename):
         options.code        = config.get(ASECTION, 'code'     )
         options.subcode     = config.get(ASECTION, 'subcode'  )
         options.promo       = config.get(ASECTION, 'promo'    )
+        options.start       = config.get(ASECTION, 'start'    )
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
         options.autocorrect = None
@@ -115,6 +120,7 @@ def _main():
         options.code      = validate_code   (options.code)
         options.subcode   = validate_subcode(options.subcode)
         options.promo     = validate_promo  (options.promo)
+        options.start     = validate_date   (options.start)
         options.markdown  = read_file(options.markdown, charset = 'utf-8')
         options.resources = validate_resources(options.resources, base)
         acorrect          = options.autocorrect
@@ -132,6 +138,7 @@ def _main():
             code      = options.code,
             subcode   = options.subcode,
             promo     = options.promo,
+            start     = options.start.strftime('%Y-%m-%d'),
             contents  = options.markdown,
             resources = encode_resources(options.resources),
         )

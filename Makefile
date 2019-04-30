@@ -7,7 +7,7 @@
 HOST     := vps.strub.nu
 SETTINGS ?= handin.settings.development
 MANAGE   := DJANGO_SETTINGS_MODULE=$(SETTINGS) python manage.py
-APPNAME  := upload
+APPNAME  ?= upload
 
 # --------------------------------------------------------------------
 default: serve
