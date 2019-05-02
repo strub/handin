@@ -21,9 +21,10 @@
 {% set guploads=uploads[group] %}
 
 <div class="panel panel-default">
-<div class="panel-heading">
+<div class="panel-heading" data-toggle="collapse"
+     data-target="#collapse-{{ group }}" data-parent="#accordion">
   <h4 class="panel-title">
-    <a data-toggle="collapse" data-parent="#accordion" href="#collapse-{{ group }}">
+    <a class="accordion-toggle">
     {% if group %}Group {{ group }}{% else %}Uncategorized{% endif %}
     </a>
   </h4>
@@ -90,8 +91,8 @@
 
 <script type="text/javascript">
 $(function() {
-  $('.panel-heading a').click(function(e) {
-    var h = $(this).attr('href').match(/^#collapse-(.+)$/);
+  $('.panel-collapse').on('shown.bs.collapse', function () {
+    var h = $(this).attr('id').match(/^collapse-(.+)$/);
     if (h != null) location.hash = h[1];
   });
 
