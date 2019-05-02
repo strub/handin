@@ -15,8 +15,9 @@ class TestSuiteRunner(object):
         self._entry   = entry
         self._workdir = os.path.realpath(workdir)
         self._clazz   = tempfile.mkdtemp()
-        self._lib     = os.path.join(workdir, 'lib')
-        self._src     = os.path.join(workdir, 'src')
+        self._lib     = os.path.join(workdir, 'lib' )
+        self._src     = os.path.join(workdir, 'src' )
+        self._test    = os.path.join(workdir, 'test')
         self._java    = ['java', '-cp', '%s:.' % (self._clazz,)]
 
     entry   = property(lambda self : self._entry)
@@ -45,7 +46,7 @@ class TestSuiteRunner(object):
                        if os.path.splitext(x)[1].lower() == '.java']
             java = [os.path.join(self._src, x) for x in java]
             cmd  = ['javac', '-cp', self._clazz,'-d', self._clazz,
-                    '-sourcepath', self._src]
+                    '-sourcepath', '%s:%s' % (self._src, self._test)]
             cmd += java
             sp.check_call(cmd, cwd = self.workdir)
         except sp.CalledProcessError as e:

@@ -98,9 +98,10 @@ def read_options(filename):
 
         if config.has_section(CSECTION):
             options.autocorrect = Object()
-            options.autocorrect.dir   = config.get(CSECTION, 'dir'  )
-            options.autocorrect.forno = config.get(CSECTION, 'forno')
-            options.autocorrect.extra = config.get(CSECTION, 'extra')
+            options.autocorrect.dir    = config.get(CSECTION, 'dir'   )
+            options.autocorrect.implem = config.get(CSECTION, 'implem', fallback = None)
+            options.autocorrect.forno  = config.get(CSECTION, 'forno' )
+            options.autocorrect.extra  = config.get(CSECTION, 'extra' )
 
     except cp.Error as e:
         raise Error('cannot read INI file (%s): %s' % (filename, e), e)
@@ -174,4 +175,3 @@ def _main():
 # --------------------------------------------------------------------
 if __name__ == '__main__':
     _main()
-

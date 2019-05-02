@@ -102,9 +102,9 @@ STATICFILES_DIRS = [
 # Background tasks
 
 MAX_ATTEMPTS = 4
-MAX_RUN_TIME = 300
+MAX_RUN_TIME = 600
 BACKGROUND_TASK_RUN_ASYNC = True
-BACKGROUND_TASK_ASYNC_THREADS = 4
+BACKGROUND_TASK_ASYNC_THREADS = 16
 
 # --------------------------------------------------------------------
 # Logging

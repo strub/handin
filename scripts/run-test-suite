@@ -1,0 +1,98 @@
+#! /usr/bin/env python3
+
+# --------------------------------------------------------------------
+import sys, os, re, configparser as cp, tempfile, shutil
+import subprocess as sp
+
+# --------------------------------------------------------------------
+ROOT = os.path.dirname(__file__)
+
+ACHECKER = os.path.join(
+    ROOT, *'../upload/autocorrect/scripts/achecker.py'.split('/'))
+
+LIBSUPPORT = os.path.join(
+    ROOT, *'../upload/autocorrect/libsupport'.split('/'))
+
+# --------------------------------------------------------------------
+class Object(object):
+    def __init__(self, **kw):
+        super().__init__()
+        self.__dict__.update(kw)
+
+# --------------------------------------------------------------------
+class Error(Exception):
+    pass
+
+# --------------------------------------------------------------------
+def read_file(path, charset = None):
+    mode = 'rb' if charset is None else 'r'
+    try:
+        with open(path, mode, encoding = charset) as stream:
+            return stream.read()
+    except (IOError, UnicodeDecodeError) as e:
+        raise Error("error while reading file `%s': %s" % (path, e), e)
+
+# --------------------------------------------------------------------
+ASECTION = 'assignment'
+CSECTION = 'auto-correct'
+
+def read_options(filename):
+    config = cp.ConfigParser()
+    config.read_string(read_file(filename, 'utf-8'))
+
+    options = Object()
+
+    try:
+        options.subcode = config.get(ASECTION, 'subcode')
+        options.dir     = config.get(CSECTION, 'dir'    )
+        options.implem  = config.get(CSECTION, 'implem' )
+        options.forno   = config.get(CSECTION, 'forno'  ).split()
+        options.extra   = config.get(CSECTION, 'extra'  ).split()
+
+    except cp.Error as e:
+        raise Error('cannot read INI file (%s): %s' % (filename, e), e)
+
+    return options
+
+# --------------------------------------------------------------------
+def _main():
+    if len(sys.argv)-1 not in (1, 2):
+        print('Usage: %s [TD.ini] <INDEX>' % (sys.argv[0],))
+        exit(1)
+
+    inifile = sys.argv[1]
+    index   = (sys.argv[2:3] or [None])[0]
+    options = read_options(inifile)
+    index   = index if index is not None else options.forno
+
+    for qno in index:
+        tfile = 'Test_%s_%s.java' % (options.subcode, qno)
+        with tempfile.TemporaryDirectory() as tmppath:
+            libpath  = os.path.join(tmppath, 'lib' )
+            srcpath  = os.path.join(tmppath, 'src' )
+            testpath = os.path.join(tmppath, 'test')
+
+            shutil.copytree(LIBSUPPORT, libpath)
+            os.makedirs(srcpath); os.makedirs(testpath)
+            for filename in options.extra:
+                shutil.copy(os.path.join(options.dir, filename), testpath)
+            shutil.copy(os.path.join(options.dir, tfile), srcpath)
+            implem = os.listdir(options.implem)
+            implem = [x for x in implem if \
+                          os.path.isfile(os.path.join(options.implem, x))]
+            implem = [x for x in implem if os.path.splitext(x)[1] == '.java']
+            for filename in implem:
+                fullname = os.path.join(options.implem, filename)
+                contents = read_file(fullname, 'utf-8')
+                contents = re.sub(r'^\s*//#', '#', contents, 0, re.M)
+                with tempfile.NamedTemporaryFile() as tmpfile:
+                    tmpfile.write(contents.encode('utf-8'))
+                    tmpfile.flush()
+                    sp.check_call(
+                        ['gpp', '-o', os.path.join(srcpath, filename),
+                         '-DQ=%s' % (qno,), tmpfile.name])
+            sp.check_call([ACHECKER, tmppath, os.path.splitext(tfile)[0]])
+
+# --------------------------------------------------------------------
+if __name__ == '__main__':
+    _main()

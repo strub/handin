@@ -12,7 +12,7 @@ import django.utils.decorators as udecorators
 from   django.views.decorators import http as dhttp
 from   django.views.decorators import csrf as dcsrf
 import django.db as db
-from   django.db.models import Max, FilteredRelation, Prefetch
+from   django.db.models import Q, Max, FilteredRelation, Prefetch
 import django.contrib.auth as dauth
 from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
@@ -177,7 +177,11 @@ def _download_handin(handin, resources, inline = True):
                         zipf.writestr(resource.name, istream.read())
         response = http.FileResponse(
             open(tmp.name, 'rb'), content_type = 'application/zip')
-        fname = '%s-%s-%s-%d-%d.zip' % (login, code, subcode, promo, index)
+        fname = '%s-%s-%s-%d-%d.zip' % (handin.user.login,
+                                        handin.assignment.code,
+                                        handin.assignment.subcode,
+                                        handin.assignment.promo,
+                                        handin.index)
         fname = ''.join([x for x in fname if x.isalnum() or x in '-.'])
         response['Content-Disposition'] = 'attachment; filename="%s"' % (fname,)
         return response
@@ -203,21 +207,19 @@ def _defer_check_internal(uuid):
 
     entry = 'Test_%s_%d.java' % (the.subcode, hdn.index)
 
-    tests = models.Resource.objects \
-                  .filter(namespace  = 'tests/files',
-                          assignment = the,
-                          name       = entry) \
-                  .first()
+    test = models.Resource.objects \
+                 .filter(namespace  = 'tests/files',
+                         assignment = the,
+                         name       = entry) \
+                 .first()
+
+    if test is None:
+        return
 
     extra = models.Resource.objects \
                   .filter(namespace  = 'tests/extra',
                           assignment = the) \
                   .all()[:]
-
-    if tests is None:
-        return
-
-    files = [tests] + list(extra)
 
     def do_recode(filename):
         return os.path.splitext(filename)[1].lower() == '.java'
@@ -225,74 +227,94 @@ def _defer_check_internal(uuid):
     try:
         log = []
 
-        with tempfile.TemporaryDirectory() as workdir:
-            log += ['copying files...']
+        with tempfile.TemporaryDirectory() as srcdir:
+            with tempfile.TemporaryDirectory() as tstdir:
+                log += ['copying files...']
+    
+                for filename in totest:
+                    if do_recode(filename.contents.path):
+                        coddet = chardet.universaldetector.UniversalDetector()
+                        with filename.contents.open('br') as stream:
+                            contents = stream.read()
+                        coddet.reset(); coddet.feed(contents); coddet.close()
+                        encoding = coddet.result['encoding'] or 'ascii'
+                        contents = codecs.decode(contents, encoding)
+                        outname  = os.path.basename(filename.name)
+                        outname  = os.path.join(srcdir, outname)
+                        with open(outname, 'wb') as stream:
+                            stream.write(codecs.encode(contents, 'utf-8'))
+                    else:
+                        shutil.copy(filename.contents.path,
+                                    os.path.join(srcdir, filename.name))
 
-            for filename in totest:
-                if do_recode(filename.contents.path):
-                    coddet = chardet.universaldetector.UniversalDetector()
-                    with filename.contents.open('br') as stream:
-                        contents = stream.read()
-                    coddet.reset(); coddet.feed(contents); coddet.close()
-                    encoding = coddet.result['encoding'] or 'ascii'
-                    contents = codecs.decode(contents, encoding)
-                    outname  = os.path.basename(filename.name)
-                    outname  = os.path.join(workdir, outname)
-                    with open(outname, 'wb') as stream:
-                        stream.write(codecs.encode(contents, 'utf-8'))
-                else:
+                shutil.copy(test.contents.path,
+                            os.path.join(srcdir, test.name))
+    
+                for filename in extra:
                     shutil.copy(filename.contents.path,
-                                os.path.join(workdir, filename.name))
-            for filename in files:
-                shutil.copy(filename.contents.path,
-                            os.path.join(workdir, filename.name))
-
-            log += ['...done']
-
-            dclient = docker.from_env()
-
-            container = dict(
-                detach  = True , stream      = False,
-                remove  = True , auto_remove = True ,
-                stdout  = True , stderr      = True ,
-                network_disabled = True,
-                volumes = {
-                    os.path.realpath(workdir): \
-                        dict(bind = '/opt/handin/user/src', mode = 'rw'),
-                    os.path.join(ACDIR, 'libsupport'): \
-                        dict(bind = '/opt/handin/user/lib', mode = 'ro'),
-                    os.path.join(ACDIR, 'scripts'): \
-                        dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
-                }
-            )
-
-            command = [
-                'timeout', '--preserve-status', '--signal=KILL', '120',
-                '/opt/handin/bin/python3',
-                '/opt/handin/user/scripts/achecker.py',
-                '/opt/handin/user',
-                os.path.splitext(entry)[0],
-            ]
-
-            log += ['running docker...']
-
-            container = dclient.containers.run \
-                ('handin:latest', command, **container)
-
-            for i, line in enumerate(container.logs(stream = True)):
-                if i < 1000:
-                    line = line.rstrip(b'\r\n')
-                    line = line.decode('utf-8', errors = 'surrogateescape')
-                    log += [line]
-
-            status = container.wait()
-
-            if 'Error' in status and status['Error'] is not None:
-                status = 'errored'
-            else:
-                status = 'success' if status['StatusCode'] == 0 else 'failure'
-
-            log += ['...docker ended (%s)' % (status,)]
+                                os.path.join(tstdir, filename.name))
+    
+                log += ['...done']
+    
+                dclient = docker.from_env()
+    
+                container = dict(
+                    detach           = True ,
+                    stream           = False,
+                    auto_remove      = False,
+                    stdout           = True ,
+                    stderr           = True ,
+                    network_disabled = True ,
+                    cpu_shares       = 256  ,
+                    mem_limit        = 128 * 1024 * 1024,
+                    volumes = {
+                        os.path.realpath(srcdir): \
+                            dict(bind = '/opt/handin/user/src', mode = 'rw'),
+                        os.path.realpath(tstdir): \
+                            dict(bind = '/opt/handin/user/test', mode = 'rw'),
+                        os.path.join(ACDIR, 'libsupport'): \
+                            dict(bind = '/opt/handin/user/lib', mode = 'ro'),
+                        os.path.join(ACDIR, 'scripts'): \
+                            dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
+                    }
+                )
+    
+                command = [
+                    'timeout', '--preserve-status', '--signal=KILL', '300',
+                    '/opt/handin/bin/python3',
+                    '/opt/handin/user/scripts/achecker.py',
+                    '/opt/handin/user',
+                    os.path.splitext(entry)[0],
+                ]
+    
+                log += ['running docker...']
+    
+                container = dclient.containers.run \
+                    ('handin:latest', command, **container)
+    
+                try:
+                    for i, line in enumerate(container.logs(stream = True)):
+                        if i < 1000:
+                            line = line.rstrip(b'\r\n')
+                            line = line.decode('utf-8', errors = 'surrogateescape')
+                            log += [line]
+        
+                    status = container.wait()
+        
+                    if 'Error' in status and status['Error'] is not None:
+                        status = 'errored'
+                    else:
+                        if status['StatusCode'] == 124:
+                            log += ['...timeout']
+                        status = 'success' if status['StatusCode'] == 0 else 'failure'
+        
+                    log += ['...docker ended (%s)' % (status,)]
+    
+                finally:
+                    try:
+                        container.remove(v = True, force = True)
+                    except docker.errors.APIError:
+                        pass
 
     except Exception as e:
         log += [repr(e)]
@@ -534,11 +556,16 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
 def myuploads(request, code, subcode, promo):
     the = get_assignment(request, code, subcode, promo)
     qst = questions_of_contents(the.contents)
-    rqs = models.HandIn.objects \
-                .filter(user = request.user, assignment = the) \
-                .all()
+    rqs = dict()
+
+    for rq in models.HandIn.objects \
+                    .filter(user = request.user, assignment = the) \
+                    .all():
+
+        rqs.setdefault(rq.index, []).append(rq)
+
     rqs = { k: max(v, key = lambda x : x.date) \
-              for k, v in groupby(rqs, lambda x : x.index) }
+                for k, v in rqs.items() }
 
     for q in qst: rqs.setdefault(q, None)
 
@@ -632,11 +659,11 @@ def handin(request, code, subcode, promo, index):
                 recd.contents.save(stream.name, ContentFile(data))
                 recd.save()
 
+        _defer_check(str(handin.uuid))
+
     url = dutils.reverse \
         ('upload:assignment', args=(code, subcode, promo))
     url = url + '#submit-%d' % (index,)
-
-    _defer_check(str(handin.uuid))
 
     return dutils.redirect(url)
 
@@ -813,10 +840,10 @@ def resource(request, code, subcode, promo, name):
 @dhttp.require_GET
 def check(request):
     handins = models.HandIn.objects \
-                           .filter(status = '') \
-                           .select_related('assignment', 'user') \
-                           .order_by('date') \
-                           .all()
+                    .filter(Q(status = '') | Q(status = 'errored')) \
+                    .select_related('assignment', 'user') \
+                    .order_by('date') \
+                    .all()
     for handin in handins:
         _defer_check(str(handin.uuid))
 
