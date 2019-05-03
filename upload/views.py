@@ -838,13 +838,61 @@ def resource(request, code, subcode, promo, name):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def check(request):
+def recheck(request, code, subcode, promo):
     handins = models.HandIn.objects \
-                    .filter(Q(status = '') | Q(status = 'errored')) \
                     .select_related('assignment', 'user') \
+                    .filter(assignment__code = code, \
+                            assignment__subcode = subcode, \
+                            assignment__promo = promo) \
+                    .filter(Q(status = '') | Q(status = 'errored')) \
                     .order_by('date') \
                     .all()
     for handin in handins:
         _defer_check(str(handin.uuid))
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def recheck_user(request, code, subcode, promo, login):
+    handins = dict()
+
+    for handin in \
+        models.HandIn.objects \
+                     .filter(assignment__code = code, \
+                             assignment__subcode = subcode, \
+                             assignment__promo = promo) \
+                     .filter(user__login = login) \
+                     .select_related('assignment', 'user') \
+                     .order_by('date') \
+                     .all():
+
+        handins.setdefault(handin.index, []).append(handin)
+
+    handins =  { k: v[-1] for k, v in handins.items() }
+
+    for handin in handins.values():
+        _defer_check(str(handin.uuid))
+
+    return http.HttpResponse(str(len(handins)), content_type='text/plain')
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def recheck_user_index(request, code, subcode, promo, login, index):
+    handin = models.HandIn.objects \
+                          .filter(assignment__code = code, \
+                                  assignment__subcode = subcode, \
+                                  assignment__promo = promo) \
+                          .filter(user__login = login, index = index) \
+                          .select_related('assignment', 'user') \
+                          .order_by('-date') \
+                          .first()
+
+    if handin is not None:
+        _defer_check(str(handin.uuid))
+
+    return http.HttpResponse('1' if handin else '0', content_type='text/plain')

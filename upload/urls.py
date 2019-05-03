@@ -44,6 +44,13 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/resources/<path:name>',
              views.resource, name='resource'),
 
-    path('run-check/',
-             views.check, name='check'),
+    path('run-check/<code>/<subcode>/<int:promo>',
+             views.recheck, name='check'),
+
+    path('run-check/<code>/<subcode>/<int:promo>/<login>/',
+             views.recheck_user, name='check'),
+
+    path('run-check/<code>/<subcode>/<int:promo>/<login>/<int:index>/',
+             views.recheck_user_index, name='check'),
+
 ]
