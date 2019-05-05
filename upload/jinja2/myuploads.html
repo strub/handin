@@ -1,4 +1,5 @@
 {% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
 
 {% block title %}My uploads{% endblock %}
 
@@ -8,10 +9,10 @@
 <p class="alert alert-info">Last update: {{ date(now) }}</p>
 
 <p>
-  <span class="glyphicon glyphicon-ok"></span> test ok &mdash;
-  <span class="glyphicon glyphicon-remove"></span> test failure &mdash;
-  <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test &mdash;
-  <span class="glyphicon glyphicon-cd"></span> uploaded / no test
+{% for c in macros.allstatus -%}
+<span class="{{ macros.status(c) }}"></span> {{ macros.statustxt(c) }}
+{{ '&mdash;' | safe if not loop.last else '' }}
+{% endfor %}
 </p>
 
 <table class="table table-striped">
@@ -28,25 +29,14 @@
     <td>{{ q }}</td>
     {% if rqs[q] %}
     <td>{{ date(rqs[q].date) }}</td>
-    <td>
-    {% if rqs[q].status == '' %}
-    <span class="glyphicon glyphicon-time"></span>
-    {% elif rqs[q].status == 'success' %}
-    <span class="glyphicon glyphicon-ok"></span>
-    {% elif rqs[q].status == 'failure' %}
-    <span class="glyphicon glyphicon-remove"></span>
-    {% elif rqs[q].status == 'no-test' %}
-    <span class="glyphicon glyphicon-cd"></span>
-    {% elif rqs[q].status == 'errored' %}
-    <span class="glyphicon glyphicon-warning-sign"></span>
-    {% endif %}
-    </td>
+    <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
     <td class="text-center">
       <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, q) }}">
-        <span class="glyphicon glyphicon-download"></span>
+        <span class="fa fa-download"></span>
       </a>
+      &nbsp;
       <a href="{{ url('upload:myupload', the.code, the.subcode, the.promo, q) }}">
-        <span class="glyphicon glyphicon-circle-arrow-right"></span>
+        <span class="fa fa-arrow-circle-right"></span>
       </a>
     </td>
     {% else %}

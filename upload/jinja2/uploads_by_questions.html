@@ -10,7 +10,7 @@
 <p class="alert alert-info">Proportions are given w.r.t. the total
 number of students that submitted at last once in that assigment.</p>
 
-<table class="table table-striped">
+<table class="table table-striped uploads">
 <thead>
   <tr>
     <th>Name</th>
@@ -22,9 +22,9 @@ number of students that submitted at last once in that assigment.</p>
 {% set pct = stats[q] / nusers if nusers else 0 %}
   <tr>
     <td>Q.{{ q }}</td>
-    <td>
+    <td style="vertical-align: middle;">
     <div class="progress progress-thin">
-      <div class="progress-bar progress-bar-warning progress-bar-striped"
+      <div class="progress-bar bg-warning progress-bar-striped"
            role="progressbar" style="width:{{ (100 * pct) | int }}%">
         {{ '%.2f' % (100 * pct) }}% ({{ stats[q] }} / {{ nusers }})
       </div>

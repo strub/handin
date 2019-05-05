@@ -1,4 +1,5 @@
 {% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
 
 {% block title %}Uploads{% endblock %}
 
@@ -9,29 +10,29 @@
 
 {% if uploads %}
 <p>
-  <span class="glyphicon glyphicon-ok"></span> test ok &mdash;
-  <span class="glyphicon glyphicon-remove"></span> test failure &mdash;
-  <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test &mdash;
-  <span class="glyphicon glyphicon-cd"></span> uploaded / no test
+{% for c in macros.allstatus -%}
+<span class="{{ macros.status(c) }}"></span> {{ macros.statustxt(c) }}
+{{ '&mdash;' | safe if not loop.last else '' }}
+{% endfor %}
 </p>
 
-<div class="panel-group" id="accordion">
+<div id="accordion">
 
 {% for group in groups %}
 {% set guploads=uploads[group] %}
 
-<div class="panel panel-default">
-<div class="panel-heading" data-toggle="collapse"
-     data-target="#collapse-{{ group }}" data-parent="#accordion">
+<div class="card">
+<div class="card-header" data-toggle="collapse"
+     data-target="#collapse-{{ group }}">
   <h4 class="panel-title">
-    <a class="accordion-toggle">
+    <button class="btn btn-link">
     {% if group %}Group {{ group }}{% else %}Uncategorized{% endif %}
-    </a>
+    </button>
   </h4>
 </div>
 
-<div id="collapse-{{ group }}" class="panel-collapse collapse">
-<div class="panel-body">
+<div id="collapse-{{ group }}" class="card-collapse collapse" data-parent="#accordion">
+<div class="card-body">
 
 <table class="table table-striped uploads">
 <thead>
@@ -51,24 +52,14 @@
     {% for q in qst %}
     <td class="text-center text-nowrap">
     {% if upload[q] %}
-    {% set handin = upload[q].0 %}
-    {% if handin.status == '' %}
-    <span class="glyphicon glyphicon-time text-warning"></span>
-    {% elif handin.status == 'success' %}
-    <span class="glyphicon glyphicon-ok text-success"></span>
-    {% elif handin.status == 'failure' %}
-    <span class="glyphicon glyphicon-remove text-danger"></span>
-    {% elif handin.status == 'no-test' %}
-    <span class="glyphicon glyphicon-cd text-success"></span>
-    {% elif handin.status == 'errored' %}
-    <span class="glyphicon glyphicon-warning-sign text-warning"></span>
-    {% endif %}
+    <span class="{{ macros.status(upload[q].0.status) }}"></span>
+    &nbsp;
     <span class="small olinks">
     <a target="_blank" href="{{ url('upload:download_upload', the.code, the.subcode, the.promo, login, q) }}">
-      <i class="glyphicon glyphicon glyphicon-download"></i>
+      <i class="fa fa-download"></i>
     </a>
     <a target="_blank" href="{{ url('upload:upload_details_by_login', the.code, the.subcode, the.promo, login, q) }}">
-      <i class="glyphicon glyphicon glyphicon-circle-arrow-right"></i>
+      <i class="fa fa-arrow-circle-right"></i>
     </a>
     </span>
     {% endif %}
@@ -91,7 +82,7 @@
 
 <script type="text/javascript">
 $(function() {
-  $('.panel-collapse').on('shown.bs.collapse', function () {
+  $('.card-collapse').on('shown.bs.collapse', function () {
     var h = $(this).attr('id').match(/^collapse-(.+)$/);
     if (h != null) location.hash = h[1];
   });
@@ -102,7 +93,7 @@ $(function() {
     var tgt = $(('#collapse-' + mtch[1]) + '.collapse');
 
     tgt.collapse({ 'toggle': true, 'parent': '#accordion' });
-    $('html, body').animate({ scrollTop: tgt.offset().top }, 400);
+    $('html, body').animate({ scrollTop: tgt.parent().offset().top }, 400);
   }
 });
 </script>

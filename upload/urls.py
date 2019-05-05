@@ -52,5 +52,4 @@ urlpatterns = [
 
     path('run-check/<code>/<subcode>/<int:promo>/<login>/<int:index>/',
              views.recheck_user_index, name='check'),
-
 ]

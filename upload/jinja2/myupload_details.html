@@ -1,4 +1,5 @@
 {% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
 
 {% block title %}My uploads{% endblock %}
 
@@ -10,7 +11,7 @@
   <dt class="col-sm-3">
     Download
     <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, index) }}">
-      <span class="glyphicon glyphicon-download"></span>
+      <span class="fa fa-download"></span>
     </a>
   </dt>
   <dd class="col-sm-9">
@@ -20,17 +21,8 @@
   <dd class="col-sm-9">{{ date(hdns.0.date) }}</dd>
   <dt class="col-sm-3">Status</dt>
   <dd class="col-sm-9">
-  {% if hdns.0.status == '' %}
-  <span class="glyphicon glyphicon-time"></span> uploaded / waiting for test result
-  {% elif hdns.0.status == 'success' %}
-  <span class="glyphicon glyphicon-ok"></span> test ok
-  {% elif hdns.0.status == 'failure' %}
-  <span class="glyphicon glyphicon-remove"></span> test failure
-  {% elif hdns.0.status == 'no-test' %}
-  <span class="glyphicon glyphicon-cd"></span> uploaded / no test
-  {% elif hdns.0.status == 'errored' %}
-  <span class="glyphicon glyphicon-warning-sign"></span> internal error
-  {% endif %}
+    <span class="{{ macros.status(hdns.0.status) }}"></span>
+    ({{ macros.statustxt(hdns.0.status) }})
   </dd>
   <dt class="col-sm-3">Log</dt>
   <dd class="col-sm-9">

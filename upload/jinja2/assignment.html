@@ -1,4 +1,5 @@
 {% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
 
 {% block title %}{{ the.code }} / {{ the.subcode }} ({{ the.promo }}){% endblock %}
 
@@ -59,23 +60,11 @@ $(document).ready(function() {
 <div class="alert alert-info">
   On {{ date(now) }}, we had submissions for the following questions:
   {% for q in handins.keys() | sort %}
-  {{ q }}
-  {% if handins[q].status == '' %}
-  (<span class="glyphicon glyphicon-time"></span>)
-  {% elif handins[q].status == 'success' %}
-  (<span class="glyphicon glyphicon-ok"></span>)
-  {% elif handins[q].status == 'failure' %}
-  (<span class="glyphicon glyphicon-remove"></span>)
-  {% elif handins[q].status == 'no-test' %}
-  (<span class="glyphicon glyphicon-cd"></span>)
-  {% elif handins[q].status == 'errored' %}
-  (<span class="glyphicon glyphicon-warning-sign"></span>)
-  {% endif %}
-  &ndash;
+  {{ q }}(<span class="{{ macros.status(handins[q].status) }}"></span>) &ndash;
   {% endfor %}
 
   <a target="_blank" href="{{ url('upload:myuploads', the.code, the.subcode, the.promo) }}">
-    Details <span class="glyphicon glyphicon-circle-arrow-right"></span>
+    Details <span class="fa fa-arrow-circle-right"></span>
   </a>
 </div>
 {% endif %}

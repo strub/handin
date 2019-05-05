@@ -1,7 +1,7 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile
 import codecs, chardet, shutil, uuid as muuid, docker, math
-from   itertools import groupby
+import itertools as it
 from   collections import namedtuple
 
 from   django.conf import settings
@@ -101,15 +101,16 @@ GSCHEMA = dict(
 
 # --------------------------------------------------------------------
 FORM = r'''
-<form class="form" method="post" enctype="multipart/form-data"
-      action="handins/%(index)d/">
+<form class="form" style="width: 70%%;" method="post"
+      enctype="multipart/form-data" action="handins/%(index)d/">
 
   <div class="form-group">
     <div class="input-group input-file" name="file">
       <span class="input-group-btn">
-        <button class="btn btn-default btn-choose" type="button">Choose</button>
+        <button class="btn btn-choose btn-secondary" type="button">Choose</button>
       </span>
-      <input type="text" class="form-control" placeholder='Choose a file...' readonly="readonly" />
+      <input type="text" class="form-control"
+             placeholder='Choose one or more files...' readonly="readonly" />
       <span class="input-group-btn">
         <button class="btn btn-primary" type="submit">Submit</button>
       </span>
@@ -417,12 +418,15 @@ def upload_groups(request, code, promo):
     return http.HttpResponse("OK\r\n", content_type = 'text/plain')
 
 # --------------------------------------------------------------------
-@login_required
-@permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def assignments(request):
-    assgns   = models.Assignment.objects
-    assgns   = assgns.order_by('code', 'subcode', 'promo')[:]
+    assgns   = models.Assignment.objects \
+                     .order_by('code', 'promo', 'subcode') \
+                     .defer('contents') \
+                     .all()
+    assgns   = [x for x in assgns if can_access_assignment(request.user, x)]
+    assgns   = it.groupby(assgns, lambda x : (x.code, x.promo))
+    assgns   = { k: list(v) for k, v in assgns }
     context  = dict(assignments = assgns)
 
     return dutils.render(request, 'assignments.html', context)

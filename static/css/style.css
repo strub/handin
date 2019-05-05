@@ -16,10 +16,6 @@ body {
   padding-top: 70px;
 }
 
-div.handin {
-  max-width: 940px;
-}
-
 a {
   color: #0645ad;
   text-decoration: none;
@@ -185,7 +181,7 @@ sub {
   bottom: -0.25em;
 }
 
-ul, ol {
+.handin ul, .handin ol {
   margin: 1em 0;
   padding: 0 0 0 2em;
 }
@@ -194,7 +190,7 @@ li p:last-child {
   margin-bottom: 0;
 }
 
-ul ul, ol ol {
+.handin ul ul, .handin ol ol {
   margin: .3em 0;
 }
 
@@ -404,54 +400,6 @@ table td {
     }
 }
 
-/* Login form */
-.login-form {
-	width: 340px;
- 	margin: 50px auto;
-}
-
-.login-form form {
- 	margin-bottom: 15px;
-  background: #f7f7f7;
-  box-shadow: 0px 2px 2px rgba(0, 0, 0, 0.3);
-  padding: 30px;
-}
-
-.login-form h2 {
-  margin: 0 0 15px;
-}
-
-.form-control, .btn {
-  min-height: 38px;
-  border-radius: 2px;
-}
-
-.btn {        
-  font-size: 15px;
-  font-weight: bold;
-}
-
-.btn-file {
-    position: relative;
-    overflow: hidden;
-}
-
-.btn-file input[type=file] {
-    position: absolute;
-    top: 0;
-    right: 0;
-    min-width: 100%;
-    min-height: 100%;
-    font-size: 100px;
-    text-align: right;
-    filter: alpha(opacity=0);
-    opacity: 0;
-    outline: none;
-    background: white;
-    cursor: inherit;
-    display: block;
-}
-
 /* Listings */
 .just-padding {
   padding: 15px;
@@ -519,6 +467,21 @@ table.uploads .olinks:hover {
   opacity: 1.0;
 }
 
-.panel-heading {
+/* Accordion */
+.card {
+  margin-bottom: 5px;
+}
+
+.card-header {
   cursor: pointer;
+  padding: 2px 5px;
+}
+
+.card-header h4 {
+  margin: 0px;
+}
+
+/* General layout */
+div.handin {
+  max-width: 940px;
 }

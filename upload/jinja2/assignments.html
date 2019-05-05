@@ -4,11 +4,15 @@
 
 {% block contents %}
 {% if assignments %}
+{% for category in assignments.keys() | sort %}
+<h3>{{ category.0 }} &ndash; {{ category.1 }}</h3>
+
 <ul>
-{% for the in assignments %}
+{% for the in assignments[category] %}
   <li><a href="{{ the.get_absolute_url() }}">{{ the }}</a></li>
 {% endfor %}
 </ul>
+{% endfor %}
 {% else %}
 <p>No assignments are available.</p>
 {% endif %}

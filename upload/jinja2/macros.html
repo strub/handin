@@ -1,0 +1,23 @@
+{% set allstatus = ['', 'no-test', 'success', 'failure', 'errored'] %}
+
+{% macro status(code) -%}
+{% set values = {
+     ''       : 'text-warning fa-clock',
+     'success': 'text-success fa-check-circle',
+     'failure': 'text-danger fa-times-circle',
+     'no-test': 'text-success fa-save',
+     'errored': 'text-danger fa-bomb',
+   } -%}
+fa {{ values.get(code, 'question-circle') }}
+{%- endmacro %}
+
+{% macro statustxt(code) -%}
+{% set values = {
+     ''       : 'uploaded / waiting for test',
+     'success': 'test success',
+     'failure': 'test failure',
+     'no-test': 'uploaded / no test',
+     'errored': 'internal error',
+   } -%}
+{{ values.get(code, '<unknown>') }}
+{%- endmacro %}
