@@ -4,6 +4,7 @@ django-cleanup
 django-debug-toolbar
 docker
 jinja2
+jsonfield
 jsonschema
 pygments
 pypandoc

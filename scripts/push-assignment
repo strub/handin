@@ -60,6 +60,32 @@ def validate_resources(resources, base):
     return resources
 
 # --------------------------------------------------------------------
+def validate_required(reqs):
+    try:
+        reqs, aout = reqs.split(), dict()
+        for req in reqs:
+            if ':' not in req:
+                raise ValueError
+            fname, indices = req.rsplit(':', 1)
+            for idx in indices.split(','):
+                mtc = re.match(r'^(\d+)?(-(\d+)?)?$', idx)
+                if not idx or mtc is None:
+                    raise ValueError
+                dtc = dict()
+                if mtc.group(1) is not None:
+                    dtc['start'] = int(mtc.group(1))
+                if mtc.group(2) is None:
+                    if 'start' in dtc:
+                        dtc['end'] = dtc['start']
+                elif mtc.group(3) is not None:
+                    dtc['end'] = int(mtc.group(2))
+                aout.setdefault(fname, []).append(dtc)
+        return aout
+
+    except ValueError:
+        raise Error('invalid req-files list')
+
+# --------------------------------------------------------------------
 def encode_resource(r):
     return dict(
         name     = r[0],
@@ -94,6 +120,7 @@ def read_options(filename):
         options.start       = config.get(ASECTION, 'start'    )
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
+        options.required    = config.get(ASECTION, 'required' , fallback = '')
         options.autocorrect = None
 
         if config.has_section(CSECTION):
@@ -118,11 +145,12 @@ def _main():
         options = read_options(sys.argv[1])
         base    = os.path.dirname(options.markdown)
 
-        options.code      = validate_code   (options.code)
-        options.subcode   = validate_subcode(options.subcode)
-        options.promo     = validate_promo  (options.promo)
-        options.start     = validate_date   (options.start)
-        options.markdown  = read_file(options.markdown, charset = 'utf-8')
+        options.code      = validate_code     (options.code)
+        options.subcode   = validate_subcode  (options.subcode)
+        options.promo     = validate_promo    (options.promo)
+        options.start     = validate_date     (options.start)
+        options.markdown  = read_file         (options.markdown, charset = 'utf-8')
+        options.required  = validate_required (options.required)
         options.resources = validate_resources(options.resources, base)
         acorrect          = options.autocorrect
 
@@ -143,6 +171,9 @@ def _main():
             contents  = options.markdown,
             resources = encode_resources(options.resources),
         )
+
+        if options.required:
+            dta['required'] = options.required
 
         if acorrect is not None:
             dta['autocorrect'] = dict(

@@ -78,28 +78,45 @@ class UnseekableStream(io.RawIOBase):
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
 
+
 RSCHEMA = dict(
     type  = 'array',
     items = dict(
-        type       = 'object',
+        type = 'object',
+        additionalProperties = False,
         properties = dict(
             name     = dict(type = 'string', pattern = r'^[^\\]+$'),
             contents = dict(type = 'string')
-        )
+        ),
     )
 )
 
 SCHEMA = dict(
-    type       = 'object',
+    type = 'object',
+    additionalProperties = False,
     properties = dict(
         code        = dict(type = 'string', pattern = REIDENT, minLength = 1),
         subcode     = dict(type = 'string', pattern = REIDENT, minLength = 1),
         promo       = dict(type = 'number', minimum = 1794),
         start       = dict(type = 'string', format = 'date'),
         contents    = dict(type = 'string'),
-        resources   = RSCHEMA,
+        required    = dict(
+            type = 'object',
+            additionalProperties = dict(
+                type  = 'array',
+                items = dict(
+                    type       = 'object',
+                    properties = dict(
+                        start = dict(type = 'number', minimum = 1),
+                        end   = dict(type = 'number', minimum = 1),
+                    ),
+                ),
+            ),
+        ),
+        resources = RSCHEMA,
         autocorrect = dict(
             type = 'object',
+            additionalProperties = False,
             properties = dict(
                 forno = dict(type = 'array', items = dict(type = 'number')),
                 files = RSCHEMA,
@@ -114,12 +131,13 @@ SCHEMA = dict(
 GSCHEMA = dict(
   type  = 'array',
   items = dict(
-    type       = 'object',
+    type  = 'object',
+    additionalProperties = False,
     properties = dict(
         login  = dict(type = 'string', pattern = '^[a-zA-Z0-9-_.]+$'),
         group  = dict(type = 'number', minimum = 1),
     ),
-    required   = ['login', 'group'],
+    required = ['login', 'group'],
   ),
 )
 
@@ -143,6 +161,7 @@ FORM = r'''
 </form>
 '''
 
+F_REQUIRED  = '<p class="alert alert-warning">You must submit the following file(s): %s<p>'
 NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
 LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 
@@ -426,7 +445,6 @@ def upload_groups(request, code, promo):
         }
 
         for g1 in jso:
-            print(g1)
             user, _ = dauth.get_user_model().objects.get_or_create(
                 login    = g1['login'],
                 defaults = dict(
@@ -648,8 +666,6 @@ def _stream_handins(fname, handins):
         stream = UnseekableStream()
 
         with zipfile.ZipFile(stream, mode='x') as zf:
-            print(zf._seekable)
-
             def create_dirs(path, seen):
                 if '/' in path:
                     create_dirs(path.rsplit('/', 1)[0], seen)
@@ -818,8 +834,6 @@ class Assignment(views.generic.TemplateView):
         ores.save()
 
     def get_context_data(self, code, subcode, promo, *args, **kw):
-        print(self.request.META.get('HTTP_META'))
-
         ctx = super().get_context_data(*args, **kw)
         the = get_assignment(self.request, code, subcode, promo)
 
@@ -838,12 +852,20 @@ class Assignment(views.generic.TemplateView):
             def doit(match):
                 index = int(match.group(1))
                 data  = '<div id="submit-%d" />' % (index,)
+
                 if index in handins:
                     date  = handins[index]['date']
                     date  = date.astimezone(utils.timezone.get_current_timezone())
                     date  = date.strftime('%B %d, %Y (%H:%M:%S)')
                     data += LAST_SUBMIT % (utils.html.escape(date),)
+
                 data += FORM % (dict(index = index))
+
+                reqs = the.required(index)
+                if reqs:
+                    reqs  = utils.html.escape(', '.join(sorted(reqs)))
+                    data += F_REQUIRED % (reqs,)
+
                 return data
 
             return doit
@@ -921,7 +943,10 @@ class Assignment(views.generic.TemplateView):
         acorrect = jso.get('autocorrect', None)
 
         key = dict(code=code, subcode=subcode, promo=promo)
-        dfl = dict(start = jso['start'], contents = jso['contents'], tests = [])
+        dfl = dict(start      = jso['start'],
+                   contents   = jso['contents'],
+                   tests      = [],
+                   properties = dict(required = jso.get('required', dict())))
 
         if acorrect is not None:
             dfl['tests'] = acorrect['forno']

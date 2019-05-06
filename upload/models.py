@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import uuid
+import uuid, collections
 
 from django.conf import settings
 from django.db import models
@@ -8,6 +8,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import ugettext_lazy as _
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from jsonfield import JSONField
 
 # --------------------------------------------------------------------
 class NatListField(models.TextField):
@@ -40,12 +41,15 @@ class Assignment(models.Model):
         unique_together = (('code', 'subcode', 'promo'))
         ordering = (('code', 'subcode', 'promo'))
 
-    code     = models.CharField(max_length = 128)
-    subcode  = models.CharField(max_length = 128)
-    promo    = models.IntegerField()
-    start    = models.DateField()
-    contents = models.TextField()
-    tests    = NatListField()
+    code       = models.CharField(max_length = 128)
+    subcode    = models.CharField(max_length = 128)
+    promo      = models.IntegerField()
+    start      = models.DateField()
+    contents   = models.TextField()
+    tests      = NatListField()
+    properties = JSONField(null = True,
+        load_kwargs = \
+            dict(object_pairs_hook = collections.OrderedDict))
 
     @property
     def key(self):
@@ -54,6 +58,24 @@ class Assignment(models.Model):
     def get_absolute_url(self):
         from django.urls import reverse
         return reverse('upload:assignment', args=self.key)
+
+    def required(self, index):
+        if self.properties is None:
+            return set()
+
+        reqs, aout = self.properties.get('required', dict()), set()
+        for req, indices in reqs.items():
+            for index0 in indices:
+                start = index0.get('start', None)
+                end   = index0.get('end'  , None)
+                print(index, start, end)
+                if \
+                   (start is not None and index < start) or \
+                   (end   is not None and index > end  ) \
+                : continue
+                aout.add(req); break
+
+        return aout
 
     def __str__(self):
         return '%s (%s) - %s' % (self.code, self.promo, self.subcode)
