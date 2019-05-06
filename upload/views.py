@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import sys, os, re, datetime as dt, tempfile, zipfile, tempfile
+import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import codecs, chardet, shutil, uuid as muuid, docker, math
 import itertools as it
 from   collections import namedtuple
@@ -33,6 +33,13 @@ ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
 ROOT  = os.path.dirname(__file__)
 
 # --------------------------------------------------------------------
+def distinct_on(iterable, key):
+    keys = set()
+    for k, x in [(key(x), x) for x in iterable]:
+        if k in keys: continue
+        keys.add(k); yield x
+
+# --------------------------------------------------------------------
 def pandoc_gen(value, template):
     import pypandoc
 
@@ -50,6 +57,23 @@ def pandoc_gen(value, template):
     )
 
     return pypandoc.convert_text(value, **args)
+
+# --------------------------------------------------------------------
+class UnseekableStream(io.RawIOBase):
+    def __init__(self):
+        self._buffer = b''
+
+    def writable(self):
+        return True
+
+    def write(self, b):
+        if self.closed:
+            raise ValueError('stream is closed')
+        self._buffer += b; return len(b)
+
+    def get(self):
+        chunk, self._buffer = self._buffer, b''
+        return chunk
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -619,15 +643,106 @@ def download_myupload(request, code, subcode, promo, index):
     return _download_handin(hdn, resources, inline = False)
 
 # --------------------------------------------------------------------
+def _stream_handins(fname, handins):
+    def generator():
+        stream = UnseekableStream()
+
+        with zipfile.ZipFile(stream, mode='x') as zf:
+            print(zf._seekable)
+
+            def create_dirs(path, seen):
+                if '/' in path:
+                    create_dirs(path.rsplit('/', 1)[0], seen)
+                if path not in seen:
+                    zinfo = zipfile.ZipInfo('%s/' % (path,))
+                    zinfo.external_attr = 0o755 << 16
+                    with zf.open(zinfo, mode='w'):
+                        seen.add(path)
+
+            seen = set()
+
+            for handin in handins:
+                resources = models.HandInFile.objects \
+                               .filter(handin = handin) \
+                               .all()
+                for resource in resources:
+                    dirname  = '%s/%s/%d' % (fname, handin.user.login, handin.index)
+                    filename = '%s/%s' % (dirname, resource.name)
+
+                    create_dirs(dirname, seen)
+                    zinfo = zipfile.ZipInfo.from_file(
+                        resource.contents.path, filename)
+                    zinfo.external_attr = 0o644 << 16
+                    with open(resource.contents.path, 'rb') as entry, \
+                         zf.open(zinfo, mode='w') as output:
+                        for chunk in iter(lambda : entry.read(16384), b''):
+                            output.write(chunk); yield stream.get()
+        yield stream.get()
+
+    response = http.StreamingHttpResponse(
+        generator(), content_type = 'application/zip')
+    response['Content-Disposition'] = 'attachment; filename=%s.zip' % (fname,)
+
+    return response
+
+# --------------------------------------------------------------------
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def download_upload(request, code, subcode, promo, login, index):
+def download_all(request, code, subcode, promo):
+    the = get_assignment(request, code, subcode, promo)
+    handins = models.HandIn.objects \
+        .select_related('user') \
+        .filter(assignment = the) \
+        .order_by('-date', 'user__login', 'index') \
+        .all()
+    handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    fname   = '%s-%s-%d' % (code, subcode, promo)
+
+    return _stream_handins(fname, handins)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_login(request, code, subcode, promo, login):
+    the = get_assignment(request, code, subcode, promo)
+    handins = models.HandIn.objects \
+        .select_related('user') \
+        .filter(assignment = the, user__login = login) \
+        .order_by('-date', 'user__login', 'index') \
+        .all()
+    handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    fname   = '%s-%s-%d-%s' % (code, subcode, promo, login)
+
+    return _stream_handins(fname, handins)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_index(request, code, subcode, promo, index):
+    the = get_assignment(request, code, subcode, promo)
+    handins = models.HandIn.objects \
+        .select_related('user') \
+        .filter(assignment = the, index = index) \
+        .order_by('-date', 'user__login', 'index') \
+        .all()
+    handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    fname   = '%s-%s-%d-q%d' % (code, subcode, promo, index)
+
+    return _stream_handins(fname, handins)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_login_index(request, code, subcode, promo, login, index):
     the = get_assignment(request, code, subcode, promo)
 
     handin = models.HandIn.objects \
         .filter(assignment = the, index = index, user__login = login) \
-        .order_by('-date') \
+        .order_by('-date', 'user__login', 'index') \
         .first()
 
     if handin is None:
@@ -703,6 +818,8 @@ class Assignment(views.generic.TemplateView):
         ores.save()
 
     def get_context_data(self, code, subcode, promo, *args, **kw):
+        print(self.request.META.get('HTTP_META'))
+
         ctx = super().get_context_data(*args, **kw)
         the = get_assignment(self.request, code, subcode, promo)
 

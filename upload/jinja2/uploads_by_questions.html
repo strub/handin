@@ -7,6 +7,13 @@
 
 <p class="alert alert-info">Last update: {{ date(now) }}</p>
 
+<div class="py-2">
+  <a role="button" class="btn btn-outline-primary btn-lg btn-block"
+     target="_blank" href="{{ url('upload:download_all', the.code, the.subcode, the.promo) }}">
+    Download all submissions
+  </a>
+</div>
+
 <p class="alert alert-info">Proportions are given w.r.t. the total
 number of students that submitted at last once in that assigment.</p>
 
@@ -21,7 +28,12 @@ number of students that submitted at last once in that assigment.</p>
 {% for q in qst %}
 {% set pct = stats[q] / nusers if nusers else 0 %}
   <tr>
-    <td>Q.{{ q }}</td>
+    <td>
+      <a target="_blank" href="{{ url('upload:download_index', the.code, the.subcode, the.promo, q) }}">
+        <span class="fa fa-cloud-download-alt"><span>
+      </a> &nbsp;
+      Q.{{ q }}
+    </td>
     <td style="vertical-align: middle;">
     <div class="progress progress-thin">
       <div class="progress-bar bg-warning progress-bar-striped"

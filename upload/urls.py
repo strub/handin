@@ -29,8 +29,17 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/<int:index>',
              views.upload_details_by_login, name='upload_details_by_login'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/',
+             views.download_all, name='download_all'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/:question/<int:index>/',
+             views.download_index, name='download_index'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/',
+             views.download_login, name='download_login'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/<int:index>/',
-             views.download_upload, name='download_upload'),
+             views.download_login_index, name='download_login_index'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:my/',
              views.myuploads, name='myuploads'),
