@@ -99,7 +99,8 @@ SCHEMA = dict(
         code        = dict(type = 'string', pattern = REIDENT, minLength = 1),
         subcode     = dict(type = 'string', pattern = REIDENT, minLength = 1),
         promo       = dict(type = 'number', minimum = 1794),
-        start       = dict(type = 'string', format = 'date'),
+        start       = dict(type = ['string', 'null'], format = 'date'),
+        end         = dict(type = ['string', 'null'], format = 'date'),
         contents    = dict(type = 'string'),
         required    = dict(
             type = 'object',
@@ -126,7 +127,7 @@ SCHEMA = dict(
             required = ['forno', 'files', 'extra'],
         )
     ),
-    required = ['code', 'subcode', 'promo', 'start', 'contents', 'resources'],
+    required = ['code', 'subcode', 'promo', 'start', 'end', 'contents', 'resources'],
 )
 
 GSCHEMA = dict(
@@ -162,7 +163,7 @@ FORM = r'''
 </form>
 '''
 
-F_REQUIRED  = '<p class="alert alert-warning">Expected files: %s<p>'
+F_REQUIRED  = '<p class="alert alert-secondary">Expected files: %s<p>'
 NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
 LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 
@@ -175,7 +176,7 @@ def questions_of_contents(contents):
 def can_access_assignment(user, the):
     if user.has_perm('upload', 'admin'):
         return True
-    return the.start <= dt.datetime.now().date()
+    return the.start is None or the.start <= dt.datetime.now().date()
 
 # --------------------------------------------------------------------
 def get_assignment(request, code, subcode, promo):
@@ -790,7 +791,7 @@ def handin(request, code, subcode, promo, index):
 
     if missing:
         messages.error(request,
-            'The following file(s) are missing from your submission: ' +
+            'The following files are missing: ' +
             ', '.join(sorted(missing)))
         return dutils.redirect(url)
 
@@ -961,6 +962,7 @@ class Assignment(views.generic.TemplateView):
 
         key = dict(code=code, subcode=subcode, promo=promo)
         dfl = dict(start      = jso['start'],
+                   end        = jso['end'],
                    contents   = jso['contents'],
                    tests      = [],
                    properties = dict(required = jso.get('required', dict())))

@@ -44,7 +44,8 @@ class Assignment(models.Model):
     code       = models.CharField(max_length = 128)
     subcode    = models.CharField(max_length = 128)
     promo      = models.IntegerField()
-    start      = models.DateField()
+    start      = models.DateField(null = True)
+    end        = models.DateField(null = True)
     contents   = models.TextField()
     tests      = NatListField()
     properties = JSONField(null = True,

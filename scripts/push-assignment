@@ -119,7 +119,8 @@ def read_options(filename):
         options.code        = config.get(ASECTION, 'code'     )
         options.subcode     = config.get(ASECTION, 'subcode'  )
         options.promo       = config.get(ASECTION, 'promo'    )
-        options.start       = config.get(ASECTION, 'start'    )
+        options.start       = config.get(ASECTION, 'start'    , fallback = None)
+        options.end         = config.get(ASECTION, 'end'      , fallback = None)
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
         options.required    = config.get(ASECTION, 'required' , fallback = '')
@@ -150,11 +151,15 @@ def _main():
         options.code      = validate_code     (options.code)
         options.subcode   = validate_subcode  (options.subcode)
         options.promo     = validate_promo    (options.promo)
-        options.start     = validate_date     (options.start)
         options.markdown  = read_file         (options.markdown, charset = 'utf-8')
         options.required  = validate_required (options.required)
         options.resources = validate_resources(options.resources, base)
         acorrect          = options.autocorrect
+
+        if options.start is not None:
+            options.start = validate_date(options.start)
+        if options.end   is not None:
+            options.end   = validate_date(options.end  )
 
         if acorrect is not None:
             acorrect.forno = validate_forno(acorrect.forno)
@@ -169,10 +174,17 @@ def _main():
             code      = options.code,
             subcode   = options.subcode,
             promo     = options.promo,
-            start     = options.start.strftime('%Y-%m-%d'),
+            start     = None,
+            end       = None,
             contents  = options.markdown,
             resources = encode_resources(options.resources),
         )
+
+        if options.start:
+            dta['start'] = options.start.strftime('%Y-%m-%d')
+
+        if options.end:
+            dta['end'] = options.end.strftime('%Y-%m-%d')
 
         if options.required:
             dta['required'] = options.required

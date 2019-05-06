@@ -9,10 +9,22 @@
 
 {% block contents %}
 
-{% if the.start > now.date() %}
+{% if the.start is not none and the.start > now.date() %}
 <div class="alert alert-warning">
   This assignment will be published on {{ the.start.strftime('%B %d, %Y') }}.
 </div>
+{% endif %}
+
+{% if the.end is not none %}
+{% if now.date() < the.end %}
+<div class="alert alert-warning">
+  This assignment will be closed on {{ the.end.strftime('%B %d, %Y') }}.
+</div>
+{% else %}
+<div class="alert alert-warning">
+  This assignment has been closed on {{ the.end.strftime('%B %d, %Y') }}.
+</div>
+{% endif %}
 {% endif %}
 
 <script>
