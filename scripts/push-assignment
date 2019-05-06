@@ -60,6 +60,8 @@ def validate_resources(resources, base):
     return resources
 
 # --------------------------------------------------------------------
+RE_RANGE = r'^(?P<start>\d+)?(?P<mid>-(?P<end>\d+)?)?$'
+
 def validate_required(reqs):
     try:
         reqs, aout = reqs.split(), dict()
@@ -68,17 +70,17 @@ def validate_required(reqs):
                 raise ValueError
             fname, indices = req.rsplit(':', 1)
             for idx in indices.split(','):
-                mtc = re.match(r'^(\d+)?(-(\d+)?)?$', idx)
+                mtc = re.match(RE_RANGE, idx)
                 if not idx or mtc is None:
                     raise ValueError
                 dtc = dict()
-                if mtc.group(1) is not None:
-                    dtc['start'] = int(mtc.group(1))
-                if mtc.group(2) is None:
+                if mtc.group('start') is not None:
+                    dtc['start'] = int(mtc.group('start'))
+                if mtc.group('mid') is None:
                     if 'start' in dtc:
                         dtc['end'] = dtc['start']
-                elif mtc.group(3) is not None:
-                    dtc['end'] = int(mtc.group(2))
+                elif mtc.group('end') is not None:
+                    dtc['end'] = int(mtc.group('end'))
                 aout.setdefault(fname, []).append(dtc)
         return aout
 
