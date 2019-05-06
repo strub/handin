@@ -485,3 +485,14 @@ table.uploads .olinks:hover {
 div.handin {
   max-width: 940px;
 }
+
+/* Alerts */
+div.handin .alert {
+  padding: 0.25rem 1.25rem;
+}
+
+#top-alerts {
+  position: fixed;
+  top: 80px;
+  z-index: 99999;
+}

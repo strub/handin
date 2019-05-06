@@ -13,6 +13,7 @@ from   django.views.decorators import http as dhttp
 from   django.views.decorators import csrf as dcsrf
 import django.db as db
 from   django.db.models import Q, Max, FilteredRelation, Prefetch
+from   django.contrib import messages
 import django.contrib.auth as dauth
 from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
@@ -161,7 +162,7 @@ FORM = r'''
 </form>
 '''
 
-F_REQUIRED  = '<p class="alert alert-warning">You must submit the following file(s): %s<p>'
+F_REQUIRED  = '<p class="alert alert-warning">Expected files: %s<p>'
 NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
 LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 
@@ -773,32 +774,48 @@ def download_login_index(request, code, subcode, promo, login, index):
 @dhttp.require_POST
 @udecorators.method_decorator(dcsrf.csrf_exempt) # FIXME
 def handin(request, code, subcode, promo, index):
-    the = get_assignment(request, code, subcode, promo)
+    the   = get_assignment(request, code, subcode, promo)
+    files = request.FILES.getlist('file', [])
+    reqs  = the.required(index)
+    url   = dutils.reverse \
+                ('upload:assignment', args=(code, subcode, promo))
+    url   = url + '#submit-%d' % (index,)
 
-    if 'file' in request.FILES:
-        with db.transaction.atomic():
-            handin = models.HandIn(
-                user       = request.user,
-                assignment = the,
-                index      = index,
-                date       = utils.timezone.now(),
+    if not files:
+        messages.error(request,
+            'You must submit at least one file')
+        return dutils.redirect(url)
+
+    missing = reqs.difference([x.name for x in files])
+
+    if missing:
+        messages.error(request,
+            'The following file(s) are missing from your submission: ' +
+            ', '.join(sorted(missing)))
+        return dutils.redirect(url)
+
+    with db.transaction.atomic():
+        handin = models.HandIn(
+            user       = request.user,
+            assignment = the,
+            index      = index,
+            date       = utils.timezone.now(),
+        )
+        handin.save()
+
+        for stream in files:
+            data = b''.join(stream.chunks()) # FIXME
+            recd = models.HandInFile(
+                handin   = handin,
+                name     = stream.name,
             )
-            handin.save()
+            recd.contents.save(stream.name, ContentFile(data))
+            recd.save()
 
-            for stream in request.FILES.getlist('file'):
-                data = b''.join(stream.chunks()) # FIXME
-                recd = models.HandInFile(
-                    handin   = handin,
-                    name     = stream.name,
-                )
-                recd.contents.save(stream.name, ContentFile(data))
-                recd.save()
+    _defer_check(str(handin.uuid))
 
-        _defer_check(str(handin.uuid))
-
-    url = dutils.reverse \
-        ('upload:assignment', args=(code, subcode, promo))
-    url = url + '#submit-%d' % (index,)
+    messages.info(request,
+        'Your files for question %d have been submitted' % (index,))
 
     return dutils.redirect(url)
 

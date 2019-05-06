@@ -1,6 +1,7 @@
 # --------------------------------------------------------------------
 from   django.contrib.staticfiles.storage import staticfiles_storage
 from   django.urls import reverse
+import django.contrib.messages as messages
 import django.utils as utils
 import django.utils.timezone as tz
 
@@ -19,9 +20,10 @@ def mydate(date):
 def environment(**options):
     env = Environment(**options)
     env.globals.update({
-        'static' : staticfiles_storage.url,
-        'url'    : myreverse,
-        'date'   : mydate,
-        'now'    : tz.now(),
+        'static'   : staticfiles_storage.url,
+        'url'      : myreverse,
+        'date'     : mydate,
+        'now'      : tz.now(),
+        'messages' : messages.get_messages,
     })
     return env

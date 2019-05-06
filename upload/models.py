@@ -68,7 +68,6 @@ class Assignment(models.Model):
             for index0 in indices:
                 start = index0.get('start', None)
                 end   = index0.get('end'  , None)
-                print(index, start, end)
                 if \
                    (start is not None and index < start) or \
                    (end   is not None and index > end  ) \
