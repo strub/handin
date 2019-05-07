@@ -7,9 +7,26 @@
 {% for category in assignments.keys() | sort %}
 <h3>{{ category.0 }} &ndash; {{ category.1 }}</h3>
 
-<ul>
+{% if request.user.has_perm('upload', 'admin') %}
+<div class="pb-3">
+  <a role="button" class="btn btn-outline-primary btn-lg btn-block"
+     target="_blank" href="{{ url('upload:download_all_code_promo', category.0, category.1) }}">
+    Download all submissions
+  </a>
+</div>
+{% endif %}
+
+<ul  class="list-group list-group-flush ">
 {% for the in assignments[category] %}
-  <li><a href="{{ the.get_absolute_url() }}">{{ the }}</a></li>
+  <li class="list-group-item py-1 pb-2">
+    <a href="{{ the.get_absolute_url() }}">{{ the }}</a>
+   {% if request.user.has_perm('upload', 'admin') %}
+    <a role="button" class="btn btn-outline-primary btn-sm px-3 float-right"
+       target="_blank" href="{{ url('upload:download_all', the.code, the.subcode, the.promo) }}">
+      Download all submissions
+    </a>
+    {% endif %}
+  </li>
 {% endfor %}
 </ul>
 {% endfor %}

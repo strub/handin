@@ -78,7 +78,7 @@ class UnseekableStream(io.RawIOBase):
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
-
+UPRE    = r'<\!--\s*UPLOAD:(\d+)\s*-->'
 
 RSCHEMA = dict(
     type  = 'array',
@@ -165,6 +165,7 @@ FORM = r'''
 
 F_REQUIRED  = '<p class="alert alert-secondary">Expected files: %s<p>'
 NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
+LATE_SUBMIT = '<p class="alert alert-danger">Submissions are now closed</p>'
 LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
 
 # --------------------------------------------------------------------
@@ -663,7 +664,7 @@ def download_myupload(request, code, subcode, promo, index):
     return _download_handin(hdn, resources, inline = False)
 
 # --------------------------------------------------------------------
-def _stream_handins(fname, handins):
+def _stream_handins(fname, pattern, handins):
     def generator():
         stream = UnseekableStream()
 
@@ -684,7 +685,12 @@ def _stream_handins(fname, handins):
                                .filter(handin = handin) \
                                .all()
                 for resource in resources:
-                    dirname  = '%s/%s/%d' % (fname, handin.user.login, handin.index)
+                    data     = dict(login   = handin.user,
+                                    code    = handin.assignment.code,
+                                    subcode = handin.assignment.subcode,
+                                    promo   = handin.assignment.promo,
+                                    index   = handin.index)
+                    dirname  = '%s/%s' % (fname, pattern % data)
                     filename = '%s/%s' % (dirname, resource.name)
 
                     create_dirs(dirname, seen)
@@ -710,14 +716,33 @@ def _stream_handins(fname, handins):
 def download_all(request, code, subcode, promo):
     the = get_assignment(request, code, subcode, promo)
     handins = models.HandIn.objects \
-        .select_related('user') \
+        .select_related('user', 'assignment') \
         .filter(assignment = the) \
+        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    pattern = '%(login)s/%(index)d'
     fname   = '%s-%s-%d' % (code, subcode, promo)
 
-    return _stream_handins(fname, handins)
+    return _stream_handins(fname, pattern, handins)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_all_code_promo(request, code, promo):
+    handins = models.HandIn.objects \
+        .select_related('user', 'assignment') \
+        .filter(assignment__code = code, assignment__promo = promo) \
+        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .order_by('assignment__subcode', '-date', 'user__login', 'index') \
+        .all()
+    handins = list(distinct_on(handins, lambda x : (x.user.login, x.index)))
+    pattern = '%(subcode)s/%(login)s/%(index)d'
+    fname   = '%s-%d' % (code, promo)
+
+    return _stream_handins(fname, pattern, handins)
 
 # --------------------------------------------------------------------
 @login_required
@@ -726,14 +751,16 @@ def download_all(request, code, subcode, promo):
 def download_login(request, code, subcode, promo, login):
     the = get_assignment(request, code, subcode, promo)
     handins = models.HandIn.objects \
-        .select_related('user') \
+        .select_related('user', 'assignment') \
         .filter(assignment = the, user__login = login) \
+        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    pattern = '%(login)s/%(index)d'
     fname   = '%s-%s-%d-%s' % (code, subcode, promo, login)
 
-    return _stream_handins(fname, handins)
+    return _stream_handins(fname, pattern, handins)
 
 # --------------------------------------------------------------------
 @login_required
@@ -742,14 +769,16 @@ def download_login(request, code, subcode, promo, login):
 def download_index(request, code, subcode, promo, index):
     the = get_assignment(request, code, subcode, promo)
     handins = models.HandIn.objects \
-        .select_related('user') \
+        .select_related('user', 'assignment') \
         .filter(assignment = the, index = index) \
+        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
+    pattern = '%(login)s/%(index)d'
     fname   = '%s-%s-%d-q%d' % (code, subcode, promo, index)
 
-    return _stream_handins(fname, handins)
+    return _stream_handins(fname, pattern, handins)
 
 # --------------------------------------------------------------------
 @login_required
@@ -759,7 +788,9 @@ def download_login_index(request, code, subcode, promo, login, index):
     the = get_assignment(request, code, subcode, promo)
 
     handin = models.HandIn.objects \
+        .select_related('user', 'assignment') \
         .filter(assignment = the, index = index, user__login = login) \
+        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .first()
 
@@ -781,6 +812,11 @@ def handin(request, code, subcode, promo, index):
     url   = dutils.reverse \
                 ('upload:assignment', args=(code, subcode, promo))
     url   = url + '#submit-%d' % (index,)
+
+    if the.end is not None and dt.datetime.now().date() >= the.end:
+        messages.error(request,
+            'The assignment has been closed')
+        return dutils.redirect(url)
 
     if not files:
         messages.error(request,
@@ -891,22 +927,28 @@ class Assignment(views.generic.TemplateView):
         def upload_match_nc(match):
             return NO_SUBMIT
 
+        def upload_match_late(match):
+            return LATE_SUBMIT
+
         handins = None
         if self.request.user.is_authenticated:
-            handins = dict()
-            for hdn in models.HandIn.objects \
-                .filter(assignment = the, user = self.request.user) \
-                .values('index', 'status', 'date') \
-                .all():
-
-                handins.setdefault(hdn['index'], []).append(hdn)
-
-            handins = { k: max(v, key = lambda v : v['date']) \
-                            for k, v in handins.items() }
-
-            text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match(handins), text)
+            if the.end is not None and dt.datetime.now().date() >= the.end:
+                text = re.sub(UPRE, upload_match_late, text)
+            else:
+                handins = dict()
+                for hdn in models.HandIn.objects \
+                    .filter(assignment = the, user = self.request.user) \
+                    .values('index', 'status', 'date') \
+                    .all():
+    
+                    handins.setdefault(hdn['index'], []).append(hdn)
+    
+                handins = { k: max(v, key = lambda v : v['date']) \
+                                for k, v in handins.items() }
+    
+                text = re.sub(UPRE, upload_match(handins), text)
         else:
-            text = re.sub(r'<\!--\s*UPLOAD:(\d+)\s*-->', upload_match_nc, text)
+            text = re.sub(UPRE, upload_match_nc, text)
 
         ctx['the'     ] = the
         ctx['nav'     ] = _build_nav(self.request.user, the, back = False)
