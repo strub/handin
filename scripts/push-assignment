@@ -138,11 +138,11 @@ def read_options(filename):
 
 # --------------------------------------------------------------------
 def _main():
-    if len(sys.argv)-1 != 2:
+    if len(sys.argv)-1 != 3:
         print(USAGE % (sys.argv[0],), file = sys.stderr)
         exit(1)
 
-    URL, options = sys.argv[1:]
+    URL, secret, options = sys.argv[1:]
     URL = '%s/%s/' % (URL, 'agns/%(code)s/%(subcode)s/%(promo)s')
 
     try:
@@ -202,7 +202,10 @@ def _main():
                           promo   = ul.parse.quote(str(options.promo))))
 
         dta = json.dumps(dta).encode('utf-8')
-        hdr = { 'Content-Type': 'application/json; charset=utf-8' }
+        hdr = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-Secret': secret,
+        }
         req = ul.request.Request(url, data = dta, headers = hdr, method = 'PUT')
 
         try:

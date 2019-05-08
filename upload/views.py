@@ -6,6 +6,7 @@ import itertools as it
 from   collections import namedtuple
 
 from   django.conf import settings
+from   django.core.exceptions import PermissionDenied
 import django.core.paginator as paginator
 from   django.core.cache import cache
 from   django.core.files.base import ContentFile
@@ -196,6 +197,19 @@ def get_assignment(request, code, subcode, promo):
                 utils.http.urlencode(dict(next = the.get_absolute_url()))
             ))
     return the
+
+# --------------------------------------------------------------------
+def _check_shared_secret_internal(request):
+    secret = settings.PRE_SHARED_SECRET
+    if secret is not None:
+        if request.META.get('HTTP_X_SECRET', '') != secret:
+            return False
+    return True
+
+# --------------------------------------------------------------------
+def _check_shared_secret(request):
+    if not _check_shared_secret_internal(request):
+        raise PermissionDenied
 
 # --------------------------------------------------------------------
 def _build_nav(user, the, back = True):
@@ -401,6 +415,8 @@ def logout(request):
 @dhttp.require_http_methods(['PUT'])
 @dcsrf.csrf_exempt
 def upload_groups(request, code, promo):
+    _check_shared_secret(request)
+
     import json, jsonschema, mimeparse as mp, base64, binascii
 
     mtype, msub, mdata = mp.parse_mime_type(request.content_type)
@@ -1079,6 +1095,8 @@ class Assignment(views.generic.TemplateView):
         return ctx
 
     def put(self, request, code, subcode, promo):
+        _check_shared_secret(request)
+
         import json, jsonschema, mimeparse as mp, base64, binascii
 
         mtype, msub, mdata = mp.parse_mime_type(request.content_type)

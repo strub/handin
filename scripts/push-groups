@@ -5,7 +5,7 @@ import sys, os, re, json, csv
 import urllib as ul, urllib.parse, urllib.request
 
 # --------------------------------------------------------------------
-USAGE = 'Usage: %s [URL] [CODE] [PROMO] [CSV]'
+USAGE = 'Usage: %s [URL] [SECRET] [CODE] [PROMO] [CSV]'
 
 # --------------------------------------------------------------------
 class Object(object):
@@ -19,11 +19,11 @@ class Error(Exception):
 
 # --------------------------------------------------------------------
 def _main():
-    if len(sys.argv)-1 != 4:
+    if len(sys.argv)-1 != 5:
         print(USAGE % (sys.argv[0],), file = sys.stderr)
         exit(1)
 
-    URL, code, promo, csvname = sys.argv[1:]
+    URL, secret, code, promo, csvname = sys.argv[1:]
     URL = '%s/%s/' % (URL, 'groups/%(code)s/%(promo)s')
 
     try:
@@ -44,7 +44,10 @@ def _main():
                           promo = ul.parse.quote(promo)))
 
         dta = json.dumps(dta).encode('utf-8')
-        hdr = { 'Content-Type': 'application/json; charset=utf-8' }
+        hdr = {
+            'Content-Type': 'application/json; charset=utf-8',
+            'X-Secret': secret,
+        }
         req = ul.request.Request(url, data = dta, headers = hdr, method = 'PUT')
 
         try:
