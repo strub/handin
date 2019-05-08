@@ -452,7 +452,12 @@ pre.console {
 
 /* Uploads table */
 table.uploads tbody td {
-  padding: 4px 2px !important;
+  padding: 4px 5px !important;
+}
+
+table.uploads tbody td.status {
+  padding-left  : 2px !important;
+  padding-right : 2px !important;
 }
 
 table.uploads tbody td:first-child {

@@ -6,6 +6,10 @@ import itertools as it
 from   collections import namedtuple
 
 from   django.conf import settings
+import django.core.paginator as paginator
+from   django.core.cache import cache
+from   django.core.files.base import ContentFile
+from   django.core.files.storage import default_storage
 import django.http as http
 import django.views as views
 import django.urls as durls
@@ -20,9 +24,6 @@ from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
 import django.utils as utils, django.utils.timezone
 import django.db as db
-from   django.core.cache import cache
-from   django.core.files.base import ContentFile
-from   django.core.files.storage import default_storage
 
 import background_task as bt
 import background_task.models as btmodels
@@ -207,40 +208,6 @@ def _build_nav(user, the, back = True):
     return dict(oasgn = (the, oth), inasgn = the, back = back)
 
 # --------------------------------------------------------------------
-def _download_handin(handin, resources, inline = True):
-    if len(resources) == 0:
-        raise http.Http404('no resources')
-
-    if len(resources) == 1:
-        response = http.FileResponse(
-            resources[0].contents.open(), content_type = 'text/plain')
-        response['Content-Disposition'] = \
-            '%s; filename="%s"' % ('inline' if inline else 'attachment',
-                                   resources[0].name)
-        return response
-
-    tmp = tempfile.NamedTemporaryFile(delete = False)
-    try:
-        with open(tmp.name, 'wb') as stream:
-            with zipfile.ZipFile(stream, 'w') as zipf:
-                for resource in resources:
-                    with resource.contents.open() as istream:
-                        zipf.writestr(resource.name, istream.read())
-        response = http.FileResponse(
-            open(tmp.name, 'rb'), content_type = 'application/zip')
-        fname = '%s-%s-%s-%d-%d.zip' % (handin.user.login,
-                                        handin.assignment.code,
-                                        handin.assignment.subcode,
-                                        handin.assignment.promo,
-                                        handin.index)
-        fname = ''.join([x for x in fname if x.isalnum() or x in '-.'])
-        response['Content-Disposition'] = 'attachment; filename="%s"' % (fname,)
-        return response
-
-    finally:
-        os.remove(tmp.name)
-
-# --------------------------------------------------------------------
 def _defer_check_internal(uuid):
     hdn = models.HandIn.objects.get(pk = uuid)
     the = hdn.assignment
@@ -384,6 +351,13 @@ def _defer_check(uuid):
     except Exception as e:
         print(e, file=sys.stderr)
         raise
+
+# --------------------------------------------------------------------
+def _defer_check_update(handin):
+    with db.transaction.atomic():
+        _defer_check(str(handin.uuid))
+        handin.log, handin.status = '', ''
+        handin.save()
 
 # --------------------------------------------------------------------
 def load(request):
@@ -596,6 +570,27 @@ def uploads_by_questions(request, code, subcode, promo):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
+def uploads_by_submissions(request, code, subcode, promo):
+    the     = get_assignment(request, code, subcode, promo)
+    qst     = questions_of_contents(the.contents)
+    uploads = models.HandIn.objects \
+                           .select_related('user') \
+                           .filter(assignment = the) \
+                           .order_by('-date') \
+                           .defer('log') \
+                           .all()
+    uploads = paginator.Paginator(uploads, 50).get_page(request.GET.get('page'))
+
+    context = dict(
+        the = the, qst = qst, uploads = uploads,
+        nav = _build_nav(request.user, the))
+
+    return dutils.render(request, 'uploads_by_submissions.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
 def upload_details_by_login(request, code, subcode, promo, login, index):
     user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
     the  = get_assignment(request, code, subcode, promo)
@@ -609,6 +604,33 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
                 .order_by('-date').all()[:]
 
     context = dict(the = the, index = index, hdns = hdn,
+                   nav = _build_nav(request.user, the))
+    context['refresh'] = REFRESH
+
+    return dutils.render(request, 'upload_details_by_login.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def upload_details_by_uuid(request, code, subcode, promo, uuid):
+    the  = get_assignment(request, code, subcode, promo)
+    qst  = questions_of_contents(the.contents)
+    hdn  = models.HandIn.objects \
+                 .filter(assignment = the, uuid = uuid) \
+                 .first()
+    oth  = sorted(
+        models.HandIn.objects \
+            .filter(assignment = the, user = hdn.user, index = hdn.index) \
+            .values('uuid', 'date') \
+            .all(),
+        key = lambda x : x['date'])
+    idx  = { x['uuid']: i for i, x in enumerate(oth) }[hdn.uuid]
+
+    if hdn is None:
+        raise http.Http404('unknown handin UUID for assignment')
+
+    context = dict(the = the, hdn = hdn, idx = idx+1, count = len(oth),
                    nav = _build_nav(request.user, the))
     context['refresh'] = REFRESH
 
@@ -660,25 +682,38 @@ def myupload_details(request, code, subcode, promo, index):
     return dutils.render(request, 'myupload_details.html', context)
 
 # --------------------------------------------------------------------
-@login_required
-@dhttp.require_GET
-def download_myupload(request, code, subcode, promo, index):
-    the = get_assignment(request, code, subcode, promo)
-    qst = questions_of_contents(the.contents)
+def _download_handin(handin, resources, inline = True):
+    if len(resources) == 0:
+        raise http.Http404('no resources')
 
-    if index not in qst:
-        raise http.Http404('unknown index')
+    if len(resources) == 1:
+        response = http.FileResponse(
+            resources[0].contents.open(), content_type = 'text/plain')
+        response['Content-Disposition'] = \
+            '%s; filename="%s"' % ('inline' if inline else 'attachment',
+                                   resources[0].name)
+        return response
 
-    hdn = models.HandIn.objects \
-                .filter(user = request.user, assignment = the, index = index) \
-                .order_by('-date').first()
+    tmp = tempfile.NamedTemporaryFile(delete = False)
+    try:
+        with open(tmp.name, 'wb') as stream:
+            with zipfile.ZipFile(stream, 'w') as zipf:
+                for resource in resources:
+                    with resource.contents.open() as istream:
+                        zipf.writestr(resource.name, istream.read())
+        response = http.FileResponse(
+            open(tmp.name, 'rb'), content_type = 'application/zip')
+        fname = '%s-%s-%s-%d-%d.zip' % (handin.user.login,
+                                        handin.assignment.code,
+                                        handin.assignment.subcode,
+                                        handin.assignment.promo,
+                                        handin.index)
+        fname = ''.join([x for x in fname if x.isalnum() or x in '-.'])
+        response['Content-Disposition'] = 'attachment; filename="%s"' % (fname,)
+        return response
 
-    if hdn is None:
-        raise http.Http404('no uploads')
-
-    resources = models.HandInFile.objects.filter(handin = hdn).all()
-
-    return _download_handin(hdn, resources, inline = False)
+    finally:
+        os.remove(tmp.name)
 
 # --------------------------------------------------------------------
 def _stream_handins(fname, pattern, handins):
@@ -725,6 +760,45 @@ def _stream_handins(fname, pattern, handins):
     response['Content-Disposition'] = 'attachment; filename=%s.zip' % (fname,)
 
     return response
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def download_myupload(request, code, subcode, promo, index):
+    the = get_assignment(request, code, subcode, promo)
+    qst = questions_of_contents(the.contents)
+
+    if index not in qst:
+        raise http.Http404('unknown index')
+
+    hdn = models.HandIn.objects \
+                .filter(user = request.user, assignment = the, index = index) \
+                .order_by('-date').first()
+
+    if hdn is None:
+        raise http.Http404('no uploads')
+
+    resources = models.HandInFile.objects.filter(handin = hdn).all()
+
+    return _download_handin(hdn, resources, inline = False)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def download_uuid(request, code, subcode, promo, uuid):
+    the = get_assignment(request, code, subcode, promo)
+    qst = questions_of_contents(the.contents)
+    hdn = models.HandIn.objects \
+                .filter(assignment = the, uuid = uuid) \
+                .first()
+
+    if hdn is None:
+        raise http.Http404('unknown handin UUID for assignment')
+
+    resources = models.HandInFile.objects.filter(handin = hdn).all()
+
+    return _download_handin(hdn, resources, inline = False)
 
 # --------------------------------------------------------------------
 @login_required
@@ -1068,11 +1142,12 @@ def recheck(request, code, subcode, promo):
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
-                    .filter(Q(status = '') | Q(status = 'errored')) \
                     .order_by('date') \
                     .all()
-    for handin in handins:
-        _defer_check(str(handin.uuid))
+
+    with db.transaction.atomic():
+        for handin in handins:
+            _defer_check_update(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1085,11 +1160,11 @@ def recheck_user(request, code, subcode, promo, login):
 
     for handin in \
         models.HandIn.objects \
+                     .select_related('assignment', 'user') \
                      .filter(assignment__code = code, \
                              assignment__subcode = subcode, \
                              assignment__promo = promo) \
                      .filter(user__login = login) \
-                     .select_related('assignment', 'user') \
                      .order_by('date') \
                      .all():
 
@@ -1097,8 +1172,9 @@ def recheck_user(request, code, subcode, promo, login):
 
     handins =  { k: v[-1] for k, v in handins.items() }
 
-    for handin in handins.values():
-        _defer_check(str(handin.uuid))
+    with db.transaction.atomic():
+        for handin in handins.values():
+            _defer_check_update(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1108,16 +1184,16 @@ def recheck_user(request, code, subcode, promo, login):
 @dhttp.require_GET
 def recheck_user_index(request, code, subcode, promo, login, index):
     handin = models.HandIn.objects \
+                          .select_related('assignment', 'user') \
                           .filter(assignment__code = code, \
                                   assignment__subcode = subcode, \
                                   assignment__promo = promo) \
                           .filter(user__login = login, index = index) \
-                          .select_related('assignment', 'user') \
-                          .order_by('-date') \
+                          .order_by('date') \
                           .first()
 
     if handin is not None:
-        _defer_check(str(handin.uuid))
+        _defer_check_update(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
 
@@ -1129,6 +1205,6 @@ def recheck_uuid(request, uuid):
     handin = models.HandIn.objects.get(pk = uuid)
 
     if handin is not None:
-        _defer_check(str(handin.uuid))
+        _defer_check_update(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')

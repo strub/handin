@@ -53,6 +53,7 @@
               <div class="dropdown-divider"></div>
               <a class="dropdown-item" href="{{ url('upload:uploads_by_users', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by students)</a>
               <a class="dropdown-item" href="{{ url('upload:uploads_by_questions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by questions)</a>
+              <a class="dropdown-item" href="{{ url('upload:uploads_by_submissions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by submissions)</a>
               {% endif %}
               {% endif %}
               {% if nav is defined and nav.inasgn %}

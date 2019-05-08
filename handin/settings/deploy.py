@@ -8,12 +8,12 @@ DOTENV_FILE = '/etc/handin/env'
 env_config  = decouple.Config(decouple.RepositoryEnv(DOTENV_FILE))
 
 # --------------------------------------------------------------------
-DEBUG = False
+DEBUG = True
 
 SECRET_KEY = env_config.get('SECRET_KEY')
 
 ALLOWED_HOSTS = env_config.get('ALLOWED_HOSTS',
-    cast = lambda v : [s.strip() for s in v.split(',')])
+    cast = lambda v : [s.strip() for s in v.split()])
 
 CACHES = {
     'default': {
@@ -53,3 +53,7 @@ EMAIL_USE_TLS       = True
 # --------------------------------------------------------------------
 MEDIA_URL  = '/media/'
 MEDIA_ROOT = env_config.get('MEDIA_ROOT')
+
+# --------------------------------------------------------------------
+BACKGROUND_TASK_ASYNC_THREADS = \
+    env_config.get('BACKGROUND_TASK_ASYNC_THREADS', cast = int)

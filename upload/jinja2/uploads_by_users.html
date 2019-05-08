@@ -57,7 +57,7 @@
   <tr>
     <td>{{ user.1 | truncate(20, True) }}</td>
     {% for q in qst %}
-    <td class="text-center text-nowrap">
+    <td class="text-center text-nowrap status">
     {% if upload[q] %}
     <span class="{{ macros.status(upload[q].0.status) }}"></span>
     &nbsp;
