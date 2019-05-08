@@ -591,7 +591,34 @@ def uploads_by_submissions(request, code, subcode, promo):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def upload_details_by_login(request, code, subcode, promo, login, index):
+def uploads_by_login(request, code, subcode, promo, login):
+    the  = get_assignment(request, code, subcode, promo)
+    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    qst  = questions_of_contents(the.contents)
+    rqs  = dict()
+
+    for rq in models.HandIn.objects \
+                    .filter(user = user, assignment = the) \
+                    .all():
+
+        rqs.setdefault(rq.index, []).append(rq)
+
+    rqs = { k: max(v, key = lambda x : x.date) \
+                for k, v in rqs.items() }
+
+    for q in qst: rqs.setdefault(q, None)
+
+    ctx = dict(the = the, rqs = rqs, qst = qst, user = user,
+               nav = _build_nav(request.user, the))
+    ctx['refresh'] = REFRESH
+
+    return dutils.render(request, 'uploads_by_login.html', ctx)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def upload_details_by_login_index(request, code, subcode, promo, login, index):
     user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
     the  = get_assignment(request, code, subcode, promo)
     qst  = questions_of_contents(the.contents)
@@ -607,7 +634,7 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
                    nav = _build_nav(request.user, the))
     context['refresh'] = REFRESH
 
-    return dutils.render(request, 'upload_details_by_login.html', context)
+    return dutils.render(request, 'upload_details_by_login_index.html', context)
 
 # --------------------------------------------------------------------
 @login_required

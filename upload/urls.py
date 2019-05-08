@@ -22,20 +22,23 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/handins/<int:index>/',
              views.handin, name='handin'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/',
+             views.uploads_by_users, name='uploads_by_users'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/',
+             views.uploads_by_login, name='uploads_by_login'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/:by-uuid/<uuid:uuid>',
              views.upload_details_by_uuid, name='upload_details'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/',
-             views.uploads_by_users, name='uploads_by_users'),
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/<int:index>',
+             views.upload_details_by_login_index, name='upload_details_by_login_index'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:by-questions/',
              views.uploads_by_questions, name='uploads_by_questions'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:by-submissions/',
              views.uploads_by_submissions, name='uploads_by_submissions'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/<int:index>',
-             views.upload_details_by_login, name='upload_details_by_login'),
 
     path('agns/<code>/<int:promo>/uploads/:download/',
              views.download_all_code_promo, name='download_all_code_promo'),

@@ -4,9 +4,18 @@
 {% block title %}My uploads{% endblock %}
 
 {% block contents %}
-<h2>My uploads - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
+<h2>Uploads for {{ user.fullname }} - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
 
 <p class="alert alert-info">Last update: {{ date(now) }}</p>
+
+{% if rqs %}
+<div class="py-2">
+  <a role="button" class="btn btn-outline-primary btn-lg btn-block"
+     target="_blank" href="{{ url('upload:download_login', the.code, the.subcode, the.promo, user.login) }}">
+    Download student submissions
+  </a>
+</div>
+{% endif %}
 
 <p>
 {% for c in macros.allstatus -%}
@@ -31,11 +40,11 @@
     <td>{{ date(rqs[q].date) }}</td>
     <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
     <td class="text-center">
-      <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, q) }}">
+      <a href="{{ url('upload:download_login_index', the.code, the.subcode, the.promo, user.login, q) }}">
         <span class="fa fa-download"></span>
       </a>
       &nbsp;
-      <a href="{{ url('upload:myupload', the.code, the.subcode, the.promo, q) }}">
+      <a href="{{ url('upload:upload_details_by_login_index', the.code, the.subcode, the.promo, user.login, q) }}">
         <span class="fa fa-arrow-circle-right"></span>
       </a>
     </td>

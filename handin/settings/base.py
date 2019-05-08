@@ -9,6 +9,9 @@ ALLOWED_HOSTS = []
 INTERNAL_IPS  = []
 
 # --------------------------------------------------------------------
+PRE_SHARED_SECRET = None
+
+# --------------------------------------------------------------------
 # Application definition
 
 INSTALLED_APPS = [

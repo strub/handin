@@ -1,0 +1,98 @@
+{% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
+
+{% block title %}Uploads{% endblock %}
+
+{% block contents %}
+<h2>Uploads (by submissions)</h2>
+
+<p class="alert alert-info">Last update: {{ date(now) }}</p>
+
+<p class="alert alert-info">
+  Total number of submissions: {{ uploads.paginator.count }}
+</p>
+
+{% if uploads %}
+<p>
+{% for c in macros.allstatus -%}
+<span class="{{ macros.status(c) }}"></span> {{ macros.statustxt(c) }}
+{{ '&mdash;' | safe if not loop.last else '' }}
+{% endfor %}
+</p>
+
+{% if uploads.has_other_pages %}
+<nav>
+<ul class="pagination justify-content-center">
+  {% if uploads.has_previous() %}
+  <li class="page-item">
+    <a class="page-link" href="?page={{ uploads.previous_page_number() }}">
+      <span>&laquo;</span>
+    </a>
+  </li>
+  {% else %}
+  <li class="page-item disabled">
+    <a class="page-link" href="#">
+      <span>&laquo;</span>
+    </a>
+  </li>
+  {% endif %}
+
+  <li class="page-item disabled">
+    <a class="page-link" href="#">
+      {{ uploads.number }} / {{ uploads.paginator.num_pages }}
+    </a>
+  </li>
+
+  {% if uploads.has_next() %}
+  <li class="page-item">
+    <a class="page-link" href="?page={{ uploads.next_page_number() }}">
+      <span>&raquo;</span>
+    </a>
+  </li>
+  {% else %}
+  <li class="page-item disabled">
+    <a class="page-link" href="#">
+      <span>&raquo;</span>
+    </a>
+  </li>
+  {% endif %}
+</nav>
+{% endif %}
+
+<table class="table table-striped uploads">
+<thead>
+  <tr>
+    <th>Date</th>
+    <th>Student</th>
+    <th>Question</th>
+    <th>Status</th>
+  </tr>
+</thead>
+<tbody>
+{% for upload in uploads %}
+  <tr>
+    <td>{{ date(upload.date) }}</td>
+    <td>
+      {{ upload.user.fullname }} &nbsp;
+      <a href="{{ url('upload:uploads_by_login', the.code, the.subcode, the.promo, upload.user.login) }}">
+        <span class="fa fa-arrow-circle-right"></span>
+      </a>
+    </td>
+    <td>{{ upload.index }}</td>
+    <td>
+      <span class="{{ macros.status(upload.status) }}"></span>
+      &nbsp;
+      <a target="_blank" href="{{ url('upload:download_uuid', the.code, the.subcode, the.promo, upload.uuid) }}">
+        <i class="fa fa-download"></i>
+      </a>
+      <a target="_blank" href="{{ url('upload:upload_details', the.code, the.subcode, the.promo, upload.uuid) }}">
+        <i class="fa fa-arrow-circle-right"></i>
+      </a>
+    </td>
+  </tr>
+{% endfor %}
+{% else %}
+<div class="alert alert-warning">No uploads</div>
+{% endif %}
+
+{% endblock %}

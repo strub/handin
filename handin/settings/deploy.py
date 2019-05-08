@@ -12,6 +12,8 @@ DEBUG = True
 
 SECRET_KEY = env_config.get('SECRET_KEY')
 
+PRE_SHARED_SECRET = env_config.get('PRE_SHARED_SECRET')
+
 ALLOWED_HOSTS = env_config.get('ALLOWED_HOSTS',
     cast = lambda v : [s.strip() for s in v.split()])
 
