@@ -81,4 +81,7 @@ urlpatterns = [
 
     path('run-check/<code>/<subcode>/<int:promo>/<login>/<int:index>/',
              views.recheck_user_index, name='check_user_index'),
+
+    path('asgn/<code>/<subcode>/<int:promo>/:status/',
+             views.status, name='status')
 ]

@@ -71,9 +71,9 @@ $(document).ready(function() {
 {% elif handins %}
 <div class="alert alert-info">
   On {{ date(now) }}, we had submissions for the following questions:
-  {% for q in handins.keys() | sort %}
-  {{ q }}(<span class="{{ macros.status(handins[q].status) }}"></span>) &ndash;
-  {% endfor %}
+  {{ handins.keys() | sort | join(", ") }}
+
+  &mdash;
 
   <a target="_blank" href="{{ url('upload:myuploads', the.code, the.subcode, the.promo) }}">
     Details <span class="fa fa-arrow-circle-right"></span>

@@ -385,6 +385,37 @@ def load(request):
         dict(p1 = _f(p1), p5 = _f(p5), p15 = _f(p15), count = count))
 
 # --------------------------------------------------------------------
+@dhttp.require_GET
+def status(request, code, subcode, promo):
+    KEYS = {
+        'success' : 'ok',
+        'no-test' : 'ok',
+        'failure' : 'ko',
+        ''        : 'mb',
+    }
+
+    the     = get_assignment(request, code, subcode, promo)
+    data    = dict(ok = [], ko = [], mb = [])
+    uploads = set()
+
+    if request.user.is_authenticated:
+        for hdn in models.HandIn.objects \
+                    .filter(assignment = the, user = request.user) \
+                    .values('index', 'status', 'date') \
+                    .order_by('-date') \
+                    .all():
+
+            if hdn['index'] in uploads:
+                continue
+            uploads.add(hdn['index'])
+            data[KEYS.get(hdn['status'], 'ko')].append(hdn['index'])
+
+    for v in data.values():
+        v.sort()
+
+    return http.JsonResponse(data)
+
+# --------------------------------------------------------------------
 @dhttp.require_http_methods(['GET', 'POST'])
 def login(request):
     if request.user.is_authenticated:
@@ -605,7 +636,7 @@ def uploads_by_submissions(request, code, subcode, promo):
                            .order_by('-date') \
                            .defer('log') \
                            .all()
-    uploads = paginator.Paginator(uploads, 50).get_page(request.GET.get('page'))
+    uploads = paginator.Paginator(uploads, 100).get_page(request.GET.get('page'))
 
     context = dict(
         the = the, qst = qst, uploads = uploads,
@@ -1098,9 +1129,6 @@ class Assignment(views.generic.TemplateView):
         ctx['nav'     ] = _build_nav(self.request.user, the, back = False)
         ctx['handins' ] = handins
         ctx['contents'] = dict(header = header, text = text)
-
-        #cache.add(self.get_cache_key(code, subcode, promo, 'header'), header)
-        #cache.add(self.get_cache_key(code, subcode, promo, 'text'  ), text  )
 
         return ctx
 

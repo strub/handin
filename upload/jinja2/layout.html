@@ -13,7 +13,6 @@
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css"
           integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf" crossorigin="anonymous">
 
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
             integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
 
@@ -23,19 +22,8 @@
     <link rel="stylesheet" href="{{ static('css/style.css') }}" />
   </head>
   <body>
-    <div id="load" class="alert alert-secondary">
-      <div id="load-txt" class="small"></div>
-    </div>
-
-    <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
-      {% if nav is defined and nav.inasgn %}
-      <a role="button" class="btn btn-outline-secondary">
-        {{ nav.inasgn.code }} &ndash; {{ nav.inasgn.subcode }} ({{ nav.inasgn.promo }})
-      </a>
-      {% else %}
+    <nav class="navbar fixed-top navbar-expand-sm navbar-light bg-light">
       <a class="navbar-brand" href="#"></a>
-      {% endif %}
-      </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-content">
         <span class="navbar-toggler-icon"></span>
       </button>
@@ -43,8 +31,12 @@
       <div class="collapse navbar-collapse" id="navbar-content">
         <ul class="navbar-nav mr-auto">
           <li class="nav-item dropdown">
-            <a class="nav-link dropdown-toggle" href="#" role="button" data-toggle="dropdown">
+            <a class="nav-link dropdown-toggle" href="#" data-toggle="dropdown">
+              {% if nav is defined and nav.inasgn %}
+              {{ nav.inasgn.code }} - {{ nav.inasgn.subcode }} ({{ nav.inasgn.promo }})
+              {% else %}
               Quick jump
+              {% endif %}
             </a>
             <div class="dropdown-menu" >
               <a class="dropdown-item" href="{{ url('upload:assignments') }}">Home</a>
@@ -76,7 +68,6 @@
                 </a>
                 {% endfor %}
               {% endfor %}
-              </div>
               {% endif %}
               {% block nav %}{% endblock %}
             </div>
@@ -133,20 +124,43 @@
     {% endfor %}
     {% endif %}
 
-    <div class="container handin">
-      {% if refresh is defined -%}
-      <div id="refresh" class="alert alert-warning">
-        <span id="refresh-txt">The page will be refreshed in - second(s)</span>
-        &mdash;
-        <div class="custom-control-inline custom-switch">
-          <input type="checkbox" class="custom-control-input" id="refresh-suspend">
-          <label class="custom-control-label" for="refresh-suspend">suspend</label>
+    <div class="container-fluid">
+      {% if request.user.is_authenticated and nav is defined and nav.inasgn %}
+      <div id="status">
+        <div class="progress" style="height: 5px;">
+          <div class="progress-bar progress-bar-striped bg-info"
+               role="progressbar" id="pg-status" style="width: 100%;"></div>
+        </div>
+        <div class="text-nowrap">
+          <span class="badge badge-pill badge-success" id="status-ok"
+                data-toggle="tooltip" data-placement="bottom" title="">-</span>
+          <span class="badge badge-pill badge-warning" id="status-mb"
+                data-toggle="tooltip" data-placement="bottom" title="">-</span>
+          <span class="badge badge-pill badge-danger"  id="status-ko"
+                data-toggle="tooltip" data-placement="bottom" title="">-</span>
         </div>
       </div>
-      {%- endif %}
+      {% endif %}
 
-      {% block contents %}
-      {% endblock %}
+      <div id="load" class="alert alert-secondary">
+        <div id="load-txt" class="small"></div>
+      </div>
+
+      <main id="content">
+        {% if refresh is defined -%}
+        <div id="refresh" class="alert alert-warning">
+          <span id="refresh-txt">The page will be refreshed in - second(s)</span>
+          &mdash;
+          <div class="custom-control-inline custom-switch">
+            <input type="checkbox" class="custom-control-input" id="refresh-suspend">
+            <label class="custom-control-label" for="refresh-suspend">suspend</label>
+          </div>
+        </div>
+        {%- endif %}
+  
+        {% block contents %}
+        {% endblock %}
+      </main>
     </div>
 
     {% if refresh is defined -%}
@@ -167,7 +181,7 @@
       }
     }
 
-    $(document).ready(function() {
+    $(function() {
       $('#refresh-suspend').change(function() {
         $suspended = $(this).prop('checked');
         if ($suspended) {
@@ -204,17 +218,59 @@
       });
     }
 
-    $(document).ready(function() {
+    $(function() {
       refresh_load();
       setInterval(refresh_load, 30000);
     });
     </script>
 
+    {% if request.user.is_authenticated and nav is defined and nav.inasgn %}
     <script type="text/javascript">
-    $(document).ready(function() {
+    var $refresh_status_max = 16;
+    var $refresh_status_cnt = $refresh_status_max;
+
+    function refresh_status() {
+      if ($refresh_status_cnt < $refresh_status_max) {
+        $refresh_status_cnt += 1;
+      } else {
+        $refresh_status_cnt = 0;
+
+        var $url  = '{{ url('upload:status', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}';
+        var $keys = ['ok', 'mb', 'ko'];
+
+        $.ajax($url).done(function(data) {
+          for (var x of $keys) {
+            $('#status-' + x)
+              .text(data[x].length)
+              .attr('data-original-title', data[x].join(', '));
+          }
+        });
+      }
+
+      var $pct = ($refresh_status_max - $refresh_status_cnt) / $refresh_status_max;
+
+      $pct = Math.round(100 * $pct);
+      $('#pg-status').attr('style', 'width: ' + $pct + '%;');
+    }
+
+    $(function() {
+      refresh_status();
+      setInterval(refresh_status, 2000);
+    });
+    </script>
+    {% endif %}
+
+    <script type="text/javascript">
+    $(function() {
         $("#top-alerts .alert").fadeTo(4000, 500).slideUp(500, function() {
           $("#top-alerts .alert").slideUp(500);
         });
+    });
+    </script>
+
+    <script type="text/javascript">
+    $(function () {
+      $('[data-toggle="tooltip"]').tooltip()
     });
     </script>
   </body>

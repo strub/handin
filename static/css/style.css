@@ -12,7 +12,6 @@ body {
   line-height: 1.7;
   margin: auto;
   background: #fefefe;
-  padding: 0px 50px;
   padding-top: 70px;
 }
 
@@ -496,12 +495,12 @@ table.uploads .olinks:hover {
 }
 
 /* General layout */
-div.handin {
+#content {
   max-width: 940px;
+  margin: auto;
 }
 
 #load {
-  opacity: .4;
   position: fixed;
   bottom: 30px;
   left: 20px;
@@ -510,7 +509,7 @@ div.handin {
   margin: 0px;
   height: 1.7rem;
   text-align: center;
-  z-index: 99998;
+  z-index: 500;
 }
 
 #load-txt {
@@ -525,5 +524,15 @@ div.handin .alert {
 #top-alerts {
   position: fixed;
   top: 80px;
-  z-index: 99999;
+  z-index: 800;
 }
+
+/* Status */
+#status {
+  position: fixed;
+  top: 80px;
+  left: 20px;
+  whitespace: nowrap;
+  z-index: 500;
+}
+
