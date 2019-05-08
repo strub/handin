@@ -1,6 +1,7 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import codecs, chardet, shutil, uuid as muuid, docker, math
+import multiprocessing as mp, psutil
 import itertools as it
 from   collections import namedtuple
 
@@ -24,6 +25,7 @@ from   django.core.files.base import ContentFile
 from   django.core.files.storage import default_storage
 
 import background_task as bt
+import background_task.models as btmodels
 
 from . import models
 
@@ -75,6 +77,9 @@ class UnseekableStream(io.RawIOBase):
     def get(self):
         chunk, self._buffer = self._buffer, b''
         return chunk
+
+# --------------------------------------------------------------------
+REFRESH = 60
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -163,7 +168,7 @@ FORM = r'''
 </form>
 '''
 
-F_REQUIRED  = '<p class="alert alert-secondary">Expected files: %s<p>'
+F_REQUIRED  = '<p class="alert alert-light">Expected files: %s<p>'
 NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
 LATE_SUBMIT = '<p class="alert alert-danger">Submissions are now closed</p>'
 LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
@@ -194,12 +199,11 @@ def get_assignment(request, code, subcode, promo):
 # --------------------------------------------------------------------
 def _build_nav(user, the, back = True):
     oth = models.Assignment.objects \
-                .filter(code=the.code, promo=the.promo) \
-                .order_by('subcode') \
-                .defer('contents') \
+                .order_by('code', 'subcode', 'promo') \
+                .defer('contents', 'properties') \
                 .all()
     oth = [x for x in oth if can_access_assignment(user, x)]
-    oth = [x.subcode for x in oth]
+    oth = { k: list(v) for k, v in it.groupby(oth, lambda x : x.code) }
     return dict(oasgn = (the, oth), inasgn = the, back = back)
 
 # --------------------------------------------------------------------
@@ -312,7 +316,6 @@ def _defer_check_internal(uuid):
                     stdout           = True ,
                     stderr           = True ,
                     network_disabled = True ,
-                    cpu_shares       = 256  ,
                     mem_limit        = 128 * 1024 * 1024,
                     volumes = {
                         os.path.realpath(srcdir): \
@@ -327,7 +330,7 @@ def _defer_check_internal(uuid):
                 )
     
                 command = [
-                    'timeout', '--preserve-status', '--signal=KILL', '300',
+                    'timeout', '--preserve-status', '--signal=KILL', '60',
                     '/opt/handin/bin/python3',
                     '/opt/handin/user/scripts/achecker.py',
                     '/opt/handin/user',
@@ -381,6 +384,17 @@ def _defer_check(uuid):
     except Exception as e:
         print(e, file=sys.stderr)
         raise
+
+# --------------------------------------------------------------------
+def load(request):
+    def _f(x):
+        return '%.2f' % (x,)
+    ncores      = mp.cpu_count()
+    count       = btmodels.Task.objects.count()
+    p1, p5, p15 = psutil.getloadavg()
+    p1, p5, p15 = p1 / ncores, p5 / ncores, p15 / ncores
+    return http.JsonResponse(
+        dict(p1 = _f(p1), p5 = _f(p5), p15 = _f(p15), count = count))
 
 # --------------------------------------------------------------------
 @dhttp.require_http_methods(['GET', 'POST'])
@@ -596,6 +610,7 @@ def upload_details_by_login(request, code, subcode, promo, login, index):
 
     context = dict(the = the, index = index, hdns = hdn,
                    nav = _build_nav(request.user, the))
+    context['refresh'] = REFRESH
 
     return dutils.render(request, 'upload_details.html', context)
 
@@ -620,6 +635,7 @@ def myuploads(request, code, subcode, promo):
 
     ctx = dict(the = the, rqs = rqs, qst = qst,
                nav = _build_nav(request.user, the))
+    ctx['refresh'] = REFRESH
 
     return dutils.render(request, 'myuploads.html', ctx)
 
@@ -639,6 +655,7 @@ def myupload_details(request, code, subcode, promo, index):
 
     context = dict(the = the, index = index, hdns = hdn,
                    nav = _build_nav(request.user, the))
+    context['refresh'] = REFRESH
 
     return dutils.render(request, 'myupload_details.html', context)
 
@@ -955,8 +972,8 @@ class Assignment(views.generic.TemplateView):
         ctx['handins' ] = handins
         ctx['contents'] = dict(header = header, text = text)
 
-        cache.add(self.get_cache_key(code, subcode, promo, 'header'), header)
-        cache.add(self.get_cache_key(code, subcode, promo, 'text'  ), text  )
+        #cache.add(self.get_cache_key(code, subcode, promo, 'header'), header)
+        #cache.add(self.get_cache_key(code, subcode, promo, 'text'  ), text  )
 
         return ctx
 
@@ -1098,6 +1115,18 @@ def recheck_user_index(request, code, subcode, promo, login, index):
                           .select_related('assignment', 'user') \
                           .order_by('-date') \
                           .first()
+
+    if handin is not None:
+        _defer_check(str(handin.uuid))
+
+    return http.HttpResponse('1' if handin else '0', content_type='text/plain')
+
+# --------------------------------------------------------------------
+#@login_required
+#@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def recheck_uuid(request, uuid):
+    handin = models.HandIn.objects.get(pk = uuid)
 
     if handin is not None:
         _defer_check(str(handin.uuid))

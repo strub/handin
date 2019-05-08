@@ -9,6 +9,8 @@ app_name = 'upload'
 urlpatterns = [
     path('', views.assignments, name='assignments'),
 
+    path('load/', views.load, name='load'),
+
     path('login/' , views.login , name='login' ),
     path('logout/', views.logout, name='logout'),
 
@@ -55,6 +57,9 @@ urlpatterns = [
 
     path('agns/<code>/<subcode>/<int:promo>/resources/<path:name>',
              views.resource, name='resource'),
+
+    path('run-check/:uuid/<uuid:uuid>',
+             views.recheck_uuid),
 
     path('run-check/<code>/<subcode>/<int:promo>',
              views.recheck, name='check'),

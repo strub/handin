@@ -102,9 +102,9 @@ STATICFILES_DIRS = [
 # Background tasks
 
 MAX_ATTEMPTS = 4
-MAX_RUN_TIME = 600
+MAX_RUN_TIME = 120
 BACKGROUND_TASK_RUN_ASYNC = True
-BACKGROUND_TASK_ASYNC_THREADS = 16
+BACKGROUND_TASK_ASYNC_THREADS = 4
 
 # --------------------------------------------------------------------
 from django.contrib.messages import constants as messages

@@ -8,11 +8,12 @@ DOTENV_FILE = '/etc/handin/env'
 env_config  = decouple.Config(decouple.RepositoryEnv(DOTENV_FILE))
 
 # --------------------------------------------------------------------
-DEBUG = True
+DEBUG = False
 
 SECRET_KEY = env_config.get('SECRET_KEY')
 
-ALLOWED_HOSTS = ['vps.strub.nu', '127.0.0.1', 'localhost']
+ALLOWED_HOSTS = env_config.get('ALLOWED_HOSTS',
+    cast = lambda v : [s.strip() for s in v.split(',')])
 
 CACHES = {
     'default': {

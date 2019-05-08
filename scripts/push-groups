@@ -5,9 +5,7 @@ import sys, os, re, json, csv
 import urllib as ul, urllib.parse, urllib.request
 
 # --------------------------------------------------------------------
-USAGE = 'Usage: %s [CODE] [PROMO] [CSV]'
-#URL   = 'https://vps.strub.nu/groups/%(code)s/%(promo)s/'
-URL   = 'http://localhost:8000/groups/%(code)s/%(promo)s/'
+USAGE = 'Usage: %s [URL] [CODE] [PROMO] [CSV]'
 
 # --------------------------------------------------------------------
 class Object(object):
@@ -21,11 +19,12 @@ class Error(Exception):
 
 # --------------------------------------------------------------------
 def _main():
-    if len(sys.argv)-1 != 3:
+    if len(sys.argv)-1 != 4:
         print(USAGE % (sys.argv[0],), file = sys.stderr)
         exit(1)
 
-    code, promo, csvname = sys.argv[1:]
+    URL, code, promo, csvname = sys.argv[1:]
+    URL = '%s/%s/' % (URL, 'groups/%(code)s/%(promo)s')
 
     try:
         dta = []

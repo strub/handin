@@ -5,9 +5,7 @@ import sys, os, glob, re, base64, json, configparser as cp
 import datetime as dt, urllib as ul, urllib.parse, urllib.request
 
 # --------------------------------------------------------------------
-USAGE = 'Usage: %s [FILE.ini]'
-URL   = 'https://vps.strub.nu/agns/%(code)s/%(subcode)s/%(promo)s/'
-#URL   = 'http://localhost:8000/agns/%(code)s/%(subcode)s/%(promo)s/'
+USAGE = 'Usage: %s [URL] [FILE.ini]'
 
 # --------------------------------------------------------------------
 class Object(object):
@@ -140,12 +138,15 @@ def read_options(filename):
 
 # --------------------------------------------------------------------
 def _main():
-    if len(sys.argv)-1 != 1:
+    if len(sys.argv)-1 != 2:
         print(USAGE % (sys.argv[0],), file = sys.stderr)
         exit(1)
 
+    URL, options = sys.argv[1:]
+    URL = '%s/%s/' % (URL, 'agns/%(code)s/%(subcode)s/%(promo)s')
+
     try:
-        options = read_options(sys.argv[1])
+        options = read_options(options)
         base    = os.path.dirname(options.markdown)
 
         options.code      = validate_code     (options.code)

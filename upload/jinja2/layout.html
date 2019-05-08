@@ -7,9 +7,8 @@
 
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
 
-
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/css/bootstrap.min.css"
-          integrity="sha384-Gn5384xqQ1aoWXA+058RXPxPg6fy4IWvTNh0E263XmFcJlSAwiGgFAW/dAiS6JXm" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css"
+          integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
 
     <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.8.1/css/all.css"
           integrity="sha384-50oBUHEmvpQ+1lW4y57PTFmhCaXp0ML5d60M1M7uH2+nqUivzIebhndOJK28anvf" crossorigin="anonymous">
@@ -18,18 +17,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.9/umd/popper.min.js"
             integrity="sha384-ApNbgh9B+Y1QKtv3Rn7W3mgPxhU9K/ScQsAP7hUibX39j7fakFPskvXusvfa0b4Q" crossorigin="anonymous"></script>
 
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0/js/bootstrap.min.js"
-            integrity="sha384-JZR6Spejh4U02d8jOt6vLEHfe/JQGiRRSQQxSfFWpi1MquVdAyjUar5+76PVCmYl" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
+            integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
     <link rel="stylesheet" href="{{ static('css/style.css') }}" />
   </head>
   <body>
+    <div id="load" class="alert alert-secondary">
+      <div id="load-txt" class="small"></div>
+    </div>
+
     <nav class="navbar fixed-top navbar-expand-lg navbar-light bg-light">
+      {% if nav is defined and nav.inasgn %}
+      <a role="button" class="btn btn-outline-secondary">
+        {{ nav.inasgn.code }} &ndash; {{ nav.inasgn.subcode }} ({{ nav.inasgn.promo }})
+      </a>
+      {% else %}
       <a class="navbar-brand" href="#"></a>
+      {% endif %}
+      </a>
       <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbar-content">
         <span class="navbar-toggler-icon"></span>
       </button>
-    
+
       <div class="collapse navbar-collapse" id="navbar-content">
         <ul class="navbar-nav mr-auto">
           <li class="nav-item dropdown">
@@ -37,16 +47,16 @@
               Quick jump
             </a>
             <div class="dropdown-menu" >
+              <a class="dropdown-item" href="{{ url('upload:assignments') }}">Home</a>
               {% if request.user.has_perm('upload', 'admin') %}
               {% if nav is defined and nav.inasgn %}
+              <div class="dropdown-divider"></div>
               <a class="dropdown-item" href="{{ url('upload:uploads_by_users', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by students)</a>
               <a class="dropdown-item" href="{{ url('upload:uploads_by_questions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by questions)</a>
-              <div class="dropdown-divider"></div>
               {% endif %}
-              <a class="dropdown-item" href="{{ url('upload:assignments') }}">See all assignments</a>
-              <div class="dropdown-divider"></div>
               {% endif %}
               {% if nav is defined and nav.inasgn %}
+              <div class="dropdown-divider"></div>
               <a class="dropdown-item" href="{{ url('upload:myuploads', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See my uploads</a>
               {% endif %}
               {% if nav is defined and nav.inasgn and nav.back %}
@@ -54,10 +64,18 @@
               <a class="dropdown-item" href="{{ url('upload:assignment', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">Back to assignment</a>
               {% endif %}
               {% if nav is defined and nav.oasgn.1 %}
-              <div class="dropdown-divider"></div>
-              {% for asgn in nav.oasgn.1 %}
-              <a class="dropdown-item" href="{{ url('upload:assignment', nav.inasgn.code, asgn, nav.inasgn.promo) }}">{{ nav.inasgn.code }} - {{ asgn }}</a>
+              {% for code, asgns in nav.oasgn.1.items() %}
+                <div class="dropdown-divider"></div>
+                <h6 class="dropdown-header">{{ code }}</h6>
+                {% for asgn in asgns %}
+                <a class="dropdown-item {{ 'active' if nav.inasgn.key == asgn.key else '' }}"
+                   href="{{ url('upload:assignment', asgn.code, asgn.subcode, asgn.promo) }}">
+                  <span class="fas fa-caret-right pr-2"></span>
+                  {{ asgn.subcode }} - {{ asgn.promo }}
+                </a>
+                {% endfor %}
               {% endfor %}
+              </div>
               {% endif %}
               {% block nav %}{% endblock %}
             </div>
@@ -115,9 +133,81 @@
     {% endif %}
 
     <div class="container handin">
-    {% block contents %}
-    {% endblock %}
+      {% if refresh is defined -%}
+      <div id="refresh" class="alert alert-warning">
+        <span id="refresh-txt">The page will be refreshed in - second(s)</span>
+        &mdash;
+        <div class="custom-control-inline custom-switch">
+          <input type="checkbox" class="custom-control-input" id="refresh-suspend">
+          <label class="custom-control-label" for="refresh-suspend">suspend</label>
+        </div>
+      </div>
+      {%- endif %}
+
+      {% block contents %}
+      {% endblock %}
     </div>
+
+    {% if refresh is defined -%}
+    <script type="text/javascript">
+    var $grefresh  = {{ refresh }};
+    var $suspended = false;
+    var $rid       = null;
+
+    function refresh() {
+      if ($suspended)
+        return ;
+      $('#refresh-txt').text(
+        'The page will be refreshed in ' + $grefresh + ' second(s)');
+      if ($grefresh > 0) {
+        $grefresh -= 1; $rid = setTimeout(refresh, 1000);
+      } else {
+        location.reload();
+      }
+    }
+
+    $(document).ready(function() {
+      $('#refresh-suspend').change(function() {
+        $suspended = $(this).prop('checked');
+        if ($suspended) {
+          if ($rid != null) {
+            window.clearTimeout($rid);
+          }
+        } else {
+          refresh();
+        }
+      });
+
+      refresh();
+    });
+    </script>
+    {%- endif %}
+
+    <script type="text/javascript">
+    function refresh_load() {
+      $.ajax('{{ url('upload:load') }}').done(function(data) {
+        var $p1 = parseFloat(data.p1);
+
+        $('#load').removeClass(function (index, className) {
+          return (className.match(/(^|\s+)alert-\S+/g) || []).join(' ');
+        });
+        if ($p1 < 2.0) {
+          $('#load').addClass('alert-secondary');
+        } else if ($p1 < 5.0) {
+          $('#load').addClass('alert-warning');
+        } else {
+          $('#load').addClass('alert-danger');
+        }
+
+        $('#load-txt').text(data.p1 + ' / ' + data.count);
+      });
+    }
+
+    $(document).ready(function() {
+      refresh_load();
+      setInterval(refresh_load, 30000);
+    });
+    </script>
 
     <script type="text/javascript">
     $(document).ready(function() {

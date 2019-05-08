@@ -457,6 +457,7 @@ table.uploads tbody td {
 
 table.uploads tbody td:first-child {
   padding-left: 10px !important;
+  white-space: nowrap;
 }
 
 table.uploads .olinks {
@@ -481,9 +482,34 @@ table.uploads .olinks:hover {
   margin: 0px;
 }
 
+.card-collapse {
+  margin-right: 5px;
+}
+
+.card-body {
+  overflow-y: scroll;
+}
+
 /* General layout */
 div.handin {
   max-width: 940px;
+}
+
+#load {
+  opacity: .4;
+  position: fixed;
+  bottom: 30px;
+  left: 20px;
+  width: 80px;
+  padding: 2px;
+  margin: 0px;
+  height: 1.7rem;
+  text-align: center;
+  z-index: 99998;
+}
+
+#load-txt {
+  position: relative;
 }
 
 /* Alerts */

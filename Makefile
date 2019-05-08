@@ -4,7 +4,7 @@
 .PHONY: __force__ default serve release release-norestart cleardb
 .PHONY: migrations reset-migrations backup run-tasks
 
-HOST     := vps.strub.nu
+HOST     := x.strub.nu
 SETTINGS ?= handin.settings.development
 MANAGE   := DJANGO_SETTINGS_MODULE=$(SETTINGS) python manage.py
 APPNAME  ?= upload
@@ -54,8 +54,8 @@ release-norestart: __force__
 
 # --------------------------------------------------------------------
 release: __force__ release-norestart
-	ssh vps.strub.nu 'sudo -i systemctl restart gunicorn'
-	ssh vps.strub.nu 'sudo -i systemctl restart process_tasks'
+	ssh $(HOST) 'sudo -i systemctl restart gunicorn'
+	ssh $(HOST) 'sudo -i systemctl restart process_tasks'
 
 # --------------------------------------------------------------------
 backup: __force__

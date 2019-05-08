@@ -6,6 +6,7 @@ docker
 jinja2
 jsonfield
 jsonschema
+psutil
 pygments
 pypandoc
 python-decouple
