@@ -561,25 +561,35 @@ def uploads_by_questions(request, code, subcode, promo):
     lst = models.HandIn.objects \
         .select_related('user') \
         .filter(assignment = the, user__cls = 'Etudiants') \
-        .order_by('user__login', 'index', '-date') \
+        .order_by('-date') \
         .defer('log') \
         .all()
 
-    nusers  = len(set([x.user.login for x in lst]))
-    stats   = { x: 0 for x in qst }
+    users   = set()
     uploads = dict()
+    stats   = { k: dict(ok = 0, ko = 0, mb = 0, er = 0) for k in qst }
 
-    for x in lst:
-        if x.user.login not in uploads:
-            uploads[x.user.login] = (x.user, dict())
-        uploads[x.user.login][1].setdefault(x.index, []).append(x)
+    KEYS = {
+        'success' : 'ok',
+        'no-test' : 'ok',
+        'failure' : 'ko',
+        ''        : 'mb',
+    }
 
-    for _, handins in uploads.values():
-        for i in handins.keys():
-            if i in stats: stats[i] += 1
+    for hdn in lst:
+        if hdn.index not in qst:
+            continue
+        users.add(hdn.user.login)
+        forno = uploads.setdefault(hdn.index, set())
+        if hdn.user.login in forno:
+            continue
+        forno.add(hdn.user.login)
+        stats[hdn.index][KEYS.get(hdn.status, 'er')] += 1
+
     context = dict(
-        the = the, qst = qst, nusers = nusers, stats = stats,
+        the = the, qst = qst, users = len(users), stats = stats,
         nav = _build_nav(request.user, the))
+
     return dutils.render(request, 'uploads_by_questions.html', context)
 
 # --------------------------------------------------------------------

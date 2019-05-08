@@ -15,31 +15,55 @@
 </div>
 
 <p class="alert alert-info">Proportions are given w.r.t. the total
-number of students that submitted at last once in that assigment.</p>
+number of students that submitted at least once in that assigment. (=
+{{ users }})</p>
+
+<div class="pb-3">
+  <div class="progress">
+    <div class="progress-bar bg-success progress-bar-striped" style="width: 22%;">Test success</div>
+    <div class="progress-bar bg-warning progress-bar-striped" style="width: 23%;">Waiting for test</div>
+    <div class="progress-bar bg-danger  progress-bar-striped" style="width: 22%;">Test failure</div>
+    <div class="progress-bar bg-info    progress-bar-striped" style="width: 23%;">Internal error</div>
+  </div>
+</div>
+
 
 <table class="table table-striped uploads">
 <thead>
   <tr>
-    <th>Name</th>
+    <th style="width: 10rem;">Name</th>
     <th>Completion</th>
   </tr>
 </thead>
 <tbody>
-{% for q in qst %}
-{% set pct = stats[q] / nusers if nusers else 0 %}
+{% for idx in qst %}
+{% set q1 = stats[idx].ok %}
+{% set q2 = stats[idx].mb %}
+{% set q3 = stats[idx].ko %}
+{% set q4 = stats[idx].er %}
+{% set q  = q1+q2+q3+q4 %}
   <tr>
-    <td>
+    <td class="text-nowrap">
       <a target="_blank" href="{{ url('upload:download_index', the.code, the.subcode, the.promo, q) }}">
         <span class="fa fa-cloud-download-alt"><span>
       </a> &nbsp;
-      Q.{{ q }}
+      Q.{{ idx }}
     </td>
     <td style="vertical-align: middle;">
     <div class="progress progress-thin">
-      <div class="progress-bar bg-warning progress-bar-striped"
-           role="progressbar" style="width:{{ (100 * pct) | int }}%">
-        {{ '%.2f' % (100 * pct) }}% ({{ stats[q] }} / {{ nusers }})
-      </div>
+      <div class="progress-bar bg-success progress-bar-striped" style="width: {{ (100*q1/users) | round(2) }}%;"></div>
+      <div class="progress-bar bg-warning progress-bar-striped" style="width: {{ (100*q2/users) | round(2) }}%;"></div>
+      <div class="progress-bar bg-danger  progress-bar-striped" style="width: {{ (100*q3/users) | round(2) }}%;"></div>
+      <div class="progress-bar bg-info    progress-bar-striped" style="width: {{ (100*q4/users) | round(2) }}%;"></div>
+    </div>
+    <div class="small">
+      ({{ q1 }} / {{ q2 }} / {{ q3 }} / {{ q4 }} = {{ q }})
+      &mdash;
+      ( {{ (q1/users*100) | round(1) }}%
+      / {{ (q2/users*100) | round(1) }}%
+      / {{ (q3/users*100) | round(1) }}%
+      / {{ (q4/users*100) | round(1) }}%
+      = {{ (q /users*100) | round(1) }}%)
     </div>
     </td>
   </tr>
