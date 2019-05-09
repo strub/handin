@@ -168,10 +168,10 @@ FORM = r'''
     </div>
     <div class="input-group">
       <div class="form-check">
-        <input type="checkbox" class="form-check-input" checked="checked"
+        <input type="checkbox" class="form-check-input"
                name="files-reuse" value="1" id="files-reuse">
         <label class="form-check-label" for="files-reuse">
-          Reuse files from previous submission
+          Reuse files from previous submissions
           <span class="far fa-question-circle" data-toggle="tooltip"
                 title="%s"></span>
         </label>
