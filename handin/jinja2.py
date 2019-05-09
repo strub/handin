@@ -23,7 +23,7 @@ def environment(**options):
         'static'   : staticfiles_storage.url,
         'url'      : myreverse,
         'date'     : mydate,
-        'now'      : tz.now(),
+        'now'      : tz.now,
         'messages' : messages.get_messages,
     })
     return env

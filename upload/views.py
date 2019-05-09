@@ -9,7 +9,7 @@ from   django.conf import settings
 from   django.core.exceptions import PermissionDenied
 import django.core.paginator as paginator
 from   django.core.cache import cache
-from   django.core.files.base import ContentFile
+from   django.core.files.base import File, ContentFile
 from   django.core.files.storage import default_storage
 import django.http as http
 import django.views as views
@@ -152,8 +152,8 @@ GSCHEMA = dict(
 
 # --------------------------------------------------------------------
 FORM = r'''
-<form class="form" style="width: 70%%;" method="post"
-      enctype="multipart/form-data" action="handins/%(index)d/">
+<form class="form" style="width: 70%%%%;" method="post"
+      enctype="multipart/form-data" action="handins/%%(index)d/">
 
   <div class="form-group">
     <div class="input-group input-file" name="file">
@@ -166,14 +166,29 @@ FORM = r'''
         <button class="btn btn-primary" type="submit">Submit</button>
       </span>
     </div>
+    <div class="input-group">
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" checked="checked"
+               name="files-reuse" value="1" id="files-reuse">
+        <label class="form-check-label" for="files-reuse">
+          Reuse files from previous submission
+          <span class="far fa-question-circle" data-toggle="tooltip"
+                title="%s"></span>
+        </label>
+      </div>
+    </div>
   </div>
 </form>
-'''
+''' % (' '.join([
+    'Missing required files are taken from (in order):',
+    'last submission of this question,',
+    'last submissions from previous questions (from last to first)',
+  ]))
 
-F_REQUIRED  = '<p class="alert alert-light">Expected files: %s<p>'
-NO_SUBMIT   = '<p class="alert alert-danger">Upload form is only available when connected</p>'
-LATE_SUBMIT = '<p class="alert alert-danger">Submissions are now closed</p>'
-LAST_SUBMIT = '<p class="alert alert-info">Last submission: %s</p>'
+F_REQUIRED  = '<div class="alert alert-light">Expected files: %s</div>'
+NO_SUBMIT   = '<div class="alert alert-danger">Upload form is only available when connected</div>'
+LATE_SUBMIT = '<div class="alert alert-danger">Submissions are now closed</div>'
+LAST_SUBMIT = '<div class="alert alert-info">Last submission: %s</div>'
 
 # --------------------------------------------------------------------
 def questions_of_contents(contents):
@@ -648,6 +663,32 @@ def uploads_by_submissions(request, code, subcode, promo):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
+def uploads_activity(request, code, subcode, promo):
+    the     = get_assignment(request, code, subcode, promo)
+    context = dict(the = the, nav = _build_nav(request.user, the))
+
+    return dutils.render(request, 'uploads_activity.html', context)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def uploads_activity_data(request, code, subcode, promo):
+    the     = get_assignment(request, code, subcode, promo)
+    context = dict(the = the, nav = _build_nav(request.user, the))
+    handins = models.HandIn.objects \
+                           .filter(assignment = the) \
+                           .order_by('-date') \
+                           .values('date') \
+                           .all()[:2000]
+    handins = [x['date'].date() for x in handins]
+
+    return http.JsonResponse(dict(dates = list(handins)))
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
 def uploads_by_login(request, code, subcode, promo, login):
     the  = get_assignment(request, code, subcode, promo)
     user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
@@ -998,7 +1039,34 @@ def handin(request, code, subcode, promo, index):
             'You must submit at least one file')
         return dutils.redirect(url)
 
+    reuse   = request.POST.get('files-reuse', '').lower() in ('1', 'true')
+    rmap    = set()
+    rlist   = []
     missing = reqs.difference([x.name for x in files])
+
+    if missing and reuse:
+        try:
+            for hdn in models.HandIn.objects \
+                             .filter(assignment = the,
+                                     user = request.user,
+                                     index__gte = index) \
+                             .defer('log') \
+                             .order_by('-index', '-date') \
+                             .all():
+    
+                if hdn in rmap:
+                    continue
+    
+                rmap.add(hdn.index)
+                for fle in hdn.handinfile_set.all():
+                    if fle.name in missing:
+                        missing.remove(fle.name)
+                        rlist.append((hdn, fle))
+                    if not missing:
+                        raise StopIteration
+
+        except StopIteration:
+            pass
 
     if missing:
         messages.error(request,
@@ -1024,10 +1092,26 @@ def handin(request, code, subcode, promo, index):
             recd.contents.save(stream.name, ContentFile(data))
             recd.save()
 
+        for _, rfile in rlist:
+            with open(rfile.contents.path, 'rb') as rfilefd:
+                recd = models.HandInFile(
+                    handin = handin,
+                    name   = rfile.name,
+                )
+                recd.contents.save(rfile.name, File(rfilefd))
+                recd.save()
+
     _defer_check(str(handin.uuid))
 
     messages.info(request,
         'Your files for question %d have been submitted' % (index,))
+
+    if rlist:
+        rlv = { k.name : v for v, k in rlist }
+        rlv = [(k, rlv[k]) for k in sorted(rlv.keys())]
+        messages.info(request,
+            'The following files have been copied from your previous submissions: ' + \
+            ', '.join(['%s (Q%d)' % (k, v.index) for k, v in rlv]))
 
     return dutils.redirect(url)
 
@@ -1080,7 +1164,7 @@ class Assignment(views.generic.TemplateView):
         def upload_match(handins):
             def doit(match):
                 index = int(match.group(1))
-                data  = '<div id="submit-%d" />' % (index,)
+                data  = '<div id="submit-%d"></div>' % (index,)
 
                 if index in handins:
                     date  = handins[index]['date']

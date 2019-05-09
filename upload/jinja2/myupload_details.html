@@ -4,7 +4,7 @@
 {% block title %}My uploads{% endblock %}
 
 {% block contents %}
-<p class="alert alert-info">Last update: {{ date(now) }}</p>
+<p class="alert alert-info">Last update: {{ date(now()) }}</p>
 
 {% if hdns|length %}
 <dl class="row">

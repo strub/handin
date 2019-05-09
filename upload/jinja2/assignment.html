@@ -9,14 +9,14 @@
 
 {% block contents %}
 
-{% if the.start is not none and the.start > now.date() %}
+{% if the.start is not none and the.start > now().date() %}
 <div class="alert alert-warning">
   This assignment will be published on {{ the.start.strftime('%B %d, %Y') }}.
 </div>
 {% endif %}
 
 {% if the.end is not none %}
-{% if now.date() < the.end %}
+{% if now().date() < the.end %}
 <div class="alert alert-warning">
   This assignment will be closed on {{ the.end.strftime('%B %d, %Y') }}.
 </div>
@@ -31,11 +31,11 @@
 function prepare_input_file() {
   $('.input-file').before(
     function() {
-      if ( ! $(this).prev().hasClass('input-ghost') ) {
+      if (!$(this).prev().hasClass('input-ghost')) {
         var element = $('<input>', {
           'type'     : 'file',
           'class'    : 'input-ghost',
-          'style'    : 'visibility:hidden; height:0',
+          'style'    : 'display: none;',
           'multiple' : 'multiple',
         });
         element.attr('name', $(this).attr('name'));
@@ -70,7 +70,7 @@ $(document).ready(function() {
 <div class="alert alert-danger">You must be authenticated to submit your files</div>
 {% elif handins %}
 <div class="alert alert-info">
-  On {{ date(now) }}, we had submissions for the following questions:
+  On {{ date(now()) }}, we had submissions for the following questions:
   {{ handins.keys() | sort | join(", ") }}
 
   &mdash;

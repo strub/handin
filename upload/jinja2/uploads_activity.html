@@ -1,0 +1,14 @@
+{% extends 'layout.html' %}
+
+{% block title %}Uploads{% endblock %}
+
+{% block headendcontents %}
+<script src="https://d3js.org/d3.v3.min.js"></script>
+{% endblock %}
+
+{% block contents %}
+<h2>Uploads activity</h2>
+
+<p class="alert alert-info">Last update: {{ date(now()) }}</p>
+
+{% endblock %}

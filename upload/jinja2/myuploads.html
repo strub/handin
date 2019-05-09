@@ -6,7 +6,7 @@
 {% block contents %}
 <h2>My uploads - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
 
-<p class="alert alert-info">Last update: {{ date(now) }}</p>
+<p class="alert alert-info">Last update: {{ date(now()) }}</p>
 
 <p>
 {% for c in macros.allstatus -%}

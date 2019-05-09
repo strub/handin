@@ -40,6 +40,12 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:by-submissions/',
              views.uploads_by_submissions, name='uploads_by_submissions'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:activity/',
+             views.uploads_activity, name='uploads_activity'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:activity/:data/',
+             views.uploads_activity_data, name='uploads_activity_data'),
+
     path('agns/<code>/<int:promo>/uploads/:download/',
              views.download_all_code_promo, name='download_all_code_promo'),
 

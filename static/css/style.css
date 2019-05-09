@@ -516,14 +516,20 @@ table.uploads .olinks:hover {
   position: relative;
 }
 
+div[id^="submit-"] {
+  padding-top: 75px;
+  margin-top: -75px;
+}
+
 /* Alerts */
-div.handin .alert {
+#content .alert {
   padding: 0.25rem 1.25rem;
 }
 
 #top-alerts {
   position: fixed;
   top: 80px;
+  margin: 0px 20px;
   z-index: 800;
 }
 

@@ -19,6 +19,8 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
             integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
+    {% block headendcontents %}{% endblock %}
+
     <link rel="stylesheet" href="{{ static('css/style.css') }}" />
   </head>
   <body>
@@ -43,9 +45,9 @@
               {% if request.user.has_perm('upload', 'admin') %}
               {% if nav is defined and nav.inasgn %}
               <div class="dropdown-divider"></div>
-              <a class="dropdown-item" href="{{ url('upload:uploads_by_users', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by students)</a>
-              <a class="dropdown-item" href="{{ url('upload:uploads_by_questions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by questions)</a>
-              <a class="dropdown-item" href="{{ url('upload:uploads_by_submissions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">See uploads (by submissions)</a>
+              <a class="dropdown-item" href="{{ url('upload:uploads_by_users', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">Uploads (by students)</a>
+              <a class="dropdown-item" href="{{ url('upload:uploads_by_questions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">Uploads (by questions)</a>
+              <a class="dropdown-item" href="{{ url('upload:uploads_by_submissions', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}">Uploads (by submissions)</a>
               {% endif %}
               {% endif %}
               {% if nav is defined and nav.inasgn %}
@@ -112,16 +114,16 @@
     </nav>
 
     {% if messages(request) %}
-    {% for alert in messages(request) %}
     <div id="top-alerts">
-      <div class="alert alert-dismissible {{ alert.tags }} fade show" role="alert">
+    {% for alert in messages(request) %}
+        <div class="alert alert-dismissible {{ alert.tags }} fade show" role="alert">
         {{ alert }}
         <button type="button" class="close" data-dismiss="alert">
           <span>&times;</span>
         </button>
       </div>
+      {% endfor %}
     </div>
-    {% endfor %}
     {% endif %}
 
     <div class="container-fluid">
