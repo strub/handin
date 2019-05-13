@@ -563,7 +563,7 @@ select u.login as login,
 @dhttp.require_GET
 def uploads_by_users(request, code, subcode, promo):
     the   = get_assignment(request, code, subcode, promo)
-    qst   = set(questions_of_contents(the.contents))
+    qst   = questions_of_contents(the.contents)
     gname = '%s:%d' % (code, promo)
 
     with db.connection.cursor() as cursor:
@@ -580,25 +580,29 @@ def uploads_by_users(request, code, subcode, promo):
     for entry in grp:
         groups.setdefault(entry.login, set()) \
               .add(int(entry.gname[len(gname)+1:]))
-    groups  = { k: min(v) for k, v in groups.items() }
+    groups = { k: min(v) for k, v in groups.items() }
+
+    users   = dict()
     uploads = dict()
-    qstmap  = { k: 'nothing' for k in sorted(qst) }
 
     for x in hdn:
-        if x.idx not in qst:
-            continue
+        if x.login not in users:
+            users[x.login] = (x.login, x.fullname)
 
-        if x.login not in uploads:
-            uploads[x.login] = { **dict(
-                login    = x.login,
-                fullname = x.fullname,
-                group    = groups.get(x.login, ''),
-            ), **qstmap }
-        uploads[x.login][x.idx] = x.status
+        ugroup = groups.get(x.login, None)
+        gdict  = uploads.setdefault(ugroup, dict())
 
-    uploads = [x[1] for x in sorted(uploads.items(), key = lambda x : x[0])]
+        if x.login not in gdict:
+            gdict[x.login] = dict()
+        gdict[x.login].setdefault(x.idx, []).append(x)
 
-    return http.JsonResponse(uploads, safe = False)
+    context = dict(
+        the    = the, qst = qst, uploads = uploads, users = users,
+        groups = sorted(uploads.keys(), key = \
+                            lambda x : math.inf if x is None else x),
+        nav    = _build_nav(request.user, the))
+
+    return dutils.render(request, 'uploads_by_users.html', context)
 
 # --------------------------------------------------------------------
 @login_required
