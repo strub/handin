@@ -89,5 +89,7 @@ urlpatterns = [
              views.recheck_user_index, name='check_user_index'),
 
     path('asgn/<code>/<subcode>/<int:promo>/:status/',
-             views.status, name='status')
+             views.status, name='status'),
+
+    path('asgn/:clean/', views.clean),
 ]

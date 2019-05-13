@@ -1397,8 +1397,8 @@ def recheck_user_index(request, code, subcode, promo, login, index):
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
 
 # --------------------------------------------------------------------
-#@login_required
-#@permission_required('upload.admin', raise_exception=True)
+@login_required
+@permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def recheck_uuid(request, uuid):
     handin = models.HandIn.objects.get(pk = uuid)
@@ -1407,3 +1407,11 @@ def recheck_uuid(request, uuid):
         _defer_check(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def clean(request):
+    aout = models.HandIn.objects.filter(~Q(user__cls = 'Etudiants')).delete()
+    return http.HttpResponse(repr(aout), content_type = 'text/plain')
