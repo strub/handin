@@ -3,6 +3,7 @@ django-background-tasks
 django-cleanup
 django-debug-toolbar
 docker
+humanfriendly
 jinja2
 jsonfield
 jsonschema

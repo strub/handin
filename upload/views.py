@@ -2,7 +2,7 @@
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import codecs, chardet, shutil, uuid as muuid, docker, math
 import multiprocessing as mp, psutil
-import itertools as it, collections as cl
+import itertools as it, humanfriendly as hf
 from   collections import namedtuple
 
 from   django.conf import settings
@@ -85,7 +85,10 @@ class UnseekableStream(io.RawIOBase):
         return chunk
 
 # --------------------------------------------------------------------
-REFRESH = 60
+REFRESH  = 60
+MAXFILES = 10
+MAXSIZE  = 256 * 1024
+MINDELTA = 10
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -390,8 +393,8 @@ def _defer_check(handin, update = True):
     with db.transaction.atomic():
         _defer_check_wrapper(str(handin.uuid))
         if update:
-        handin.log, handin.status = '', ''
-        handin.save()
+            handin.log, handin.status = '', ''
+            handin.save()
 
 # --------------------------------------------------------------------
 def load(request):
@@ -560,7 +563,7 @@ select u.login as login,
 @dhttp.require_GET
 def uploads_by_users(request, code, subcode, promo):
     the   = get_assignment(request, code, subcode, promo)
-    qst   = questions_of_contents(the.contents)
+    qst   = set(questions_of_contents(the.contents))
     gname = '%s:%d' % (code, promo)
 
     with db.connection.cursor() as cursor:
@@ -577,29 +580,25 @@ def uploads_by_users(request, code, subcode, promo):
     for entry in grp:
         groups.setdefault(entry.login, set()) \
               .add(int(entry.gname[len(gname)+1:]))
-    groups = { k: min(v) for k, v in groups.items() }
-
-    users   = dict()
+    groups  = { k: min(v) for k, v in groups.items() }
     uploads = dict()
+    qstmap  = { k: 'nothing' for k in sorted(qst) }
 
     for x in hdn:
-        if x.login not in users:
-            users[x.login] = (x.login, x.fullname)
+        if x.idx not in qst:
+            continue
 
-        ugroup = groups.get(x.login, None)
-        gdict  = uploads.setdefault(ugroup, dict())
+        if x.login not in uploads:
+            uploads[x.login] = { **dict(
+                login    = x.login,
+                fullname = x.fullname,
+                group    = groups.get(x.login, ''),
+            ), **qstmap }
+        uploads[x.login][x.idx] = x.status
 
-        if x.login not in gdict:
-            gdict[x.login] = dict()
-        gdict[x.login].setdefault(x.idx, []).append(x)
+    uploads = [x[1] for x in sorted(uploads.items(), key = lambda x : x[0])]
 
-    context = dict(
-        the    = the, qst = qst, uploads = uploads, users = users,
-        groups = sorted(uploads.keys(), key = \
-                            lambda x : math.inf if x is None else x),
-        nav    = _build_nav(request.user, the))
-
-    return dutils.render(request, 'uploads_by_users.html', context)
+    return http.JsonResponse(uploads, safe = False)
 
 # --------------------------------------------------------------------
 @login_required
@@ -1042,6 +1041,33 @@ def handin(request, code, subcode, promo, index):
     if not files:
         messages.error(request,
             'You must submit at least one file')
+        return dutils.redirect(url)
+
+    if len(files) > MAXFILES:
+        messages.error(request,
+            'You cannot upload more than %d files' % (MAXFILES,))
+        return dutils.redirect(url)
+
+    for ufile in files:
+        if ufile.size > MAXSIZE:
+            messages.error(request, "`%s' is more than %s" % \
+                (ufile.name, hf.format_size(MAXSIZE, binary=True)))
+            return dutils.redirect(url)
+
+    diffd = None
+    lastd = models.HandIn.objects \
+                         .filter(user = request.user) \
+                         .values('date') \
+                         .order_by('-date') \
+                         .first()
+
+    if lastd is not None:
+        diffd = utils.timezone.now() - lastd['date']
+
+    if diffd is not None and diffd.total_seconds() - MINDELTA < -1.0:
+        messages.error(request,
+            'You are submitting files too fast (wait %d second(s))' % \
+                (MINDELTA - diffd.total_seconds()))
         return dutils.redirect(url)
 
     reuse   = request.POST.get('files-reuse', '').lower() in ('1', 'true')
