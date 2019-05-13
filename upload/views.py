@@ -2,7 +2,7 @@
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import codecs, chardet, shutil, uuid as muuid, docker, math
 import multiprocessing as mp, psutil
-import itertools as it
+import itertools as it, collections as cl
 from   collections import namedtuple
 
 from   django.conf import settings
@@ -36,6 +36,10 @@ from handin.middleware import eredirect
 # --------------------------------------------------------------------
 ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
 ROOT  = os.path.dirname(__file__)
+
+# --------------------------------------------------------------------
+def sort_groupby(iterable, key):
+    return it.groupby(sorted(iterable, key=key), key=key)
 
 # --------------------------------------------------------------------
 def distinct_on(iterable, key):
@@ -233,7 +237,7 @@ def _build_nav(user, the, back = True):
                 .defer('contents', 'properties') \
                 .all()
     oth = [x for x in oth if can_access_assignment(user, x)]
-    oth = { k: list(v) for k, v in it.groupby(oth, lambda x : x.code) }
+    oth = { k: list(v) for k, v in sort_groupby(oth, lambda x : x.code) }
     return dict(oasgn = (the, oth), inasgn = the, back = back)
 
 # --------------------------------------------------------------------
@@ -372,7 +376,7 @@ def _defer_check_internal(uuid):
 
 # --------------------------------------------------------------------
 @bt.background(queue = 'check')
-def _defer_check(uuid):
+def _defer_check_wrapper(uuid):
     try:
         print('CHECK: %s' % (uuid,), file=sys.stderr)
         _defer_check_internal(muuid.UUID(uuid))
@@ -382,9 +386,10 @@ def _defer_check(uuid):
         raise
 
 # --------------------------------------------------------------------
-def _defer_check_update(handin):
+def _defer_check(handin, update = True):
     with db.transaction.atomic():
-        _defer_check(str(handin.uuid))
+        _defer_check_wrapper(str(handin.uuid))
+        if update:
         handin.log, handin.status = '', ''
         handin.save()
 
@@ -520,7 +525,7 @@ def assignments(request):
                      .defer('contents') \
                      .all()
     assgns   = [x for x in assgns if can_access_assignment(request.user, x)]
-    assgns   = it.groupby(assgns, lambda x : (x.code, x.promo))
+    assgns   = sort_groupby(assgns, lambda x : (x.code, x.promo))
     assgns   = { k: list(v) for k, v in assgns }
     context  = dict(assignments = assgns)
 
@@ -1101,7 +1106,7 @@ def handin(request, code, subcode, promo, index):
                 recd.contents.save(rfile.name, File(rfilefd))
                 recd.save()
 
-    _defer_check(str(handin.uuid))
+    _defer_check(handin, update = False)
 
     messages.info(request,
         'Your files for question %d have been submitted' % (index,))
@@ -1309,12 +1314,13 @@ def recheck(request, code, subcode, promo):
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
+                    .filter(status = '') \
                     .order_by('date') \
                     .all()
 
     with db.transaction.atomic():
         for handin in handins:
-            _defer_check_update(handin)
+            _defer_check(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1341,7 +1347,7 @@ def recheck_user(request, code, subcode, promo, login):
 
     with db.transaction.atomic():
         for handin in handins.values():
-            _defer_check_update(handin)
+            _defer_check(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1360,7 +1366,7 @@ def recheck_user_index(request, code, subcode, promo, login, index):
                           .first()
 
     if handin is not None:
-        _defer_check_update(handin)
+        _defer_check(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
 
@@ -1372,6 +1378,6 @@ def recheck_uuid(request, uuid):
     handin = models.HandIn.objects.get(pk = uuid)
 
     if handin is not None:
-        _defer_check_update(handin)
+        _defer_check(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
