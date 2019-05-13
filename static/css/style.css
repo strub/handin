@@ -530,7 +530,7 @@ div[id^="submit-"] {
   position: fixed;
   top: 80px;
   margin: 0px 20px;
-  z-index: 800;
+  z-index: 1500;
 }
 
 /* Status */

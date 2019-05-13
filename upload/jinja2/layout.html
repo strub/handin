@@ -3,6 +3,8 @@
   <head>
     <title>{% block title %}{% endblock %}</title>
 
+    <link rel="shortcut icon" type="image/png" href="{% static 'favicon.ico' %}">
+
     {% block headcontents %}{% endblock %}
 
     <script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.3.1/jquery.min.js"></script>
@@ -111,22 +113,7 @@
           {% endif %}
         </ul>
       </div>
-    </nav>
 
-    {% if messages(request) %}
-    <div id="top-alerts">
-    {% for alert in messages(request) %}
-        <div class="alert alert-dismissible {{ alert.tags }} fade show" role="alert">
-        {{ alert }}
-        <button type="button" class="close" data-dismiss="alert">
-          <span>&times;</span>
-        </button>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    <div class="container-fluid">
       {% if request.user.is_authenticated and nav is defined and nav.inasgn %}
       <div id="status">
         <div class="progress" style="height: 5px;">
@@ -143,7 +130,22 @@
         </div>
       </div>
       {% endif %}
+    </nav>
 
+    {% if messages(request) %}
+    <div id="top-alerts">
+    {% for alert in messages(request) %}
+        <div class="alert alert-dismissible {{ alert.tags }} fade show" role="alert">
+        {{ alert }}
+        <button type="button" class="close" data-dismiss="alert">
+          <span>&times;</span>
+        </button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <div class="container-fluid">
       <div id="load" class="alert alert-secondary">
         <div id="load-txt" class="small"></div>
       </div>
