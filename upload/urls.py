@@ -91,5 +91,5 @@ urlpatterns = [
     path('asgn/<code>/<subcode>/<int:promo>/:status/',
              views.status, name='status'),
 
-    path('asgn/:clean/', views.clean),
+    path('agns/:clean/', views.clean),
 ]
