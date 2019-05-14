@@ -56,14 +56,13 @@ def read_options(filename):
 
 # --------------------------------------------------------------------
 def _main():
-    if len(sys.argv)-1 not in (1, 2):
-        print('Usage: %s [TD.ini] <INDEX>' % (sys.argv[0],))
+    if len(sys.argv)-1 < 2:
+        print('Usage: %s [TD.ini] <INDEX...>' % (sys.argv[0],))
         exit(1)
 
     inifile = sys.argv[1]
-    index   = (sys.argv[2:3] or [None])[0]
+    index   = sys.argv[2:]
     options = read_options(inifile)
-    index   = index if index is not None else options.forno
 
     for qno in index:
         tfile = 'Test_%s_%s.java' % (options.subcode, qno)
