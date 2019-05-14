@@ -116,10 +116,6 @@
 
       {% if request.user.is_authenticated and nav is defined and nav.inasgn %}
       <div id="status">
-        <div class="progress" style="height: 5px;">
-          <div class="progress-bar progress-bar-striped bg-info"
-               role="progressbar" id="pg-status" style="width: 100%;"></div>
-        </div>
         <div class="text-nowrap">
           <span class="badge badge-pill badge-success" id="status-ok"
                 data-toggle="tooltip" data-placement="bottom" title="">-</span>
@@ -250,11 +246,6 @@
           }
         });
       }
-
-      var $pct = ($refresh_status_max - $refresh_status_cnt) / $refresh_status_max;
-
-      $pct = Math.round(100 * $pct);
-      $('#pg-status').attr('style', 'width: ' + $pct + '%;');
     }
 
     $(function() {

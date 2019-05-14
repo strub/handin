@@ -4,6 +4,7 @@ from   django.urls import reverse
 import django.contrib.messages as messages
 import django.utils as utils
 import django.utils.timezone as tz
+import uuid
 
 from jinja2 import Environment
 
@@ -25,5 +26,6 @@ def environment(**options):
         'date'     : mydate,
         'now'      : tz.now,
         'messages' : messages.get_messages,
+        'uuid'     : uuid.UUID,
     })
     return env

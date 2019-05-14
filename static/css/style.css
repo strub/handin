@@ -473,24 +473,24 @@ table.uploads .olinks:hover {
 }
 
 /* Accordion */
-.card {
+#uploads .card {
   margin-bottom: 5px;
 }
 
-.card-header {
+#uploads .card-header {
   cursor: pointer;
   padding: 2px 5px;
 }
 
-.card-header h4 {
+#uploads .card-header h4 {
   margin: 0px;
 }
 
-.card-collapse {
+#uploads .card-collapse {
   margin-right: 5px;
 }
 
-.card-body {
+#uploads .card-body {
   overflow-y: scroll;
 }
 
@@ -542,3 +542,25 @@ div[id^="submit-"] {
   z-index: 500;
 }
 
+/* Code */
+pre > code {
+  font-size: 85%;
+}
+
+.hljs-ln-numbers {
+  text-align: center;
+  color: black;
+  border-right: 1px solid #999;
+  vertical-align: top;
+  padding-right: 5px;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  -khtml-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+.hljs-ln-code {
+  padding-left: 10px;
+}

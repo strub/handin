@@ -3,6 +3,14 @@
 
 {% block title %}My uploads{% endblock %}
 
+{% block headendcontents %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css"
+      integrity="sha384-ut3ELVx81ErZQaaMTknSmGb0CEGAKoBFTamRcY1ddG4guN0aoga4C+B6B7Kv1Ll1" crossorigin="anonymous">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"
+        integrity="sha384-CWWTkjyKvLwc1j/u6LmdJiGCWFkQtH9MxBpmgzrFFwMhF5qM2u/FzXrhV3nUfs0l" crossorigin="anonymous"></script>
+{% endblock %}
+
 {% block contents %}
 <h2>Uploads for {{ user.fullname }} - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
 
@@ -40,6 +48,10 @@
     <td>{{ date(rqs[q].date) }}</td>
     <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
     <td class="text-center">
+      <a href="#" onclick="display_resources({{ q }}, '{{ rqs[q].uuid }}')">
+        <span class="far fa-eye"></span>
+      </a>
+      &nbsp;
       <a href="{{ url('upload:download_login_index', the.code, the.subcode, the.promo, user.login, q) }}">
         <span class="fa fa-download"></span>
       </a>
@@ -57,4 +69,69 @@
 {% endfor %}
 </tbody>
 </table>
+
+<div id="files-modal" class="modal fade" tabindex="-1" role="dialog">
+  <div class="modal-dialog modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 id="files-modal-title" class="modal-title"></h5>
+        <button type="button" class="close" data-dismiss="modal">
+          <span>&times;</span>
+        </button>
+      </div>
+      <div id="files-modal-body" class="card tab-card modal-body mt-3"></div>
+    </div>
+  </div>
+</div>
+
+<script type="text/javascript">
+hljs.initHighlightingOnLoad();
+
+$(document).ready(function() {
+  $('#files-modal').on('hidden.bs.modal', function(e) {
+    $('#files-modal-title').text('');
+    $('#files-modal-body' ).text('');
+  });
+});
+
+function display_resources(idx, uuid) {
+  var url = "{{ url('upload:download_uuid_data', the.code, the.subcode, the.promo, uuid('00000000-0000-0000-0000-000000000000')) }}";
+
+  url = url.replace('00000000-0000-0000-0000-000000000000', uuid);
+  $.getJSON(url, function(data) {
+    $(data.resources).each(function (vidx, value) {
+      value.contents = atob(value.contents);
+    });
+
+    var tabs  = $('<ul class="nav nav-tabs card-header-tabs" role="tablist">');
+    var panes = $('<div class="tab-content">');
+
+    for (i = 0; i < data.resources.length; ++i) {
+      tabs.append(
+        $('<li class="nav-item">')
+          .append(
+            $('<a class="nav-link" data-toggle="tab" role="tab">')
+              .attr('href', '#files-modal-file-' + i)
+              .text(data.resources[i].name)));
+      panes.append(
+        $('<div class="tab-pane fade show p-3" role="tabpanel">')
+          .attr('id', 'files-modal-file-' + i)
+          .append($('<pre>')
+                    .append($('<code>')
+                      .append(document.createTextNode(data.resources[i].contents)))));
+    }
+
+    tabs = $('<div class="card-header tab-card-header">').append(tabs);
+    $('#files-modal-body').append(tabs);
+    $('#files-modal-body').append(panes);
+    tabs.find('a:first').tab('show');
+    panes.find('code').each(function(vidx, block) {
+      hljs.highlightBlock(block);
+    });
+
+    $('#files-modal-title').text('Files for question Q.' + idx);
+    $('#files-modal').modal('show');
+  });
+}
+</script>
 {% endblock %}

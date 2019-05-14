@@ -28,7 +28,9 @@
 {% for group in groups %}
 {% set guploads=uploads[group] %}
 
+<div id="uploads">
 <div class="card">
+
 <div class="card-header" data-toggle="collapse"
      data-target="#collapse-{{ group }}">
   <h4 class="panel-title">
@@ -55,7 +57,12 @@
 {% set user   = users[login] %}
 {% set upload = guploads[login] %}
   <tr>
-    <td>{{ user.1 | truncate(20, True) }}</td>
+    <td>
+      {{ user.1 | truncate(20, True) }}
+      <a href="{{ url('upload:uploads_by_login', the.code, the.subcode, the.promo, login) }}">
+        <span class="fa fa-arrow-circle-right"></span>
+      </a>
+    </td>
     {% for q in qst %}
     <td class="text-center text-nowrap status">
     {% if upload[q] %}
@@ -89,6 +96,7 @@
 </div>
 {% endfor %}
 
+</div>
 </div>
 {% else %}
 <div class="alert alert-warning">No uploads</div>

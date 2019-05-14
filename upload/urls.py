@@ -64,6 +64,9 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>',
              views.download_uuid, name='download_uuid'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>/:data/',
+             views.download_uuid_data, name='download_uuid_data'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/:my/',
              views.myuploads, name='myuploads'),
 
@@ -82,11 +85,14 @@ urlpatterns = [
     path('run-check/<code>/<subcode>/<int:promo>/',
              views.recheck, name='check'),
 
-    path('run-check/<code>/<subcode>/<int:promo>/<login>/',
+    path('run-check/<code>/<subcode>/<int:promo>/:by-users/<login>/',
              views.recheck_user, name='check_user'),
 
-    path('run-check/<code>/<subcode>/<int:promo>/<login>/<int:index>/',
+    path('run-check/<code>/<subcode>/<int:promo>/:by-users/<login>/<int:index>/',
              views.recheck_user_index, name='check_user_index'),
+
+    path('run-check/<code>/<subcode>/<int:promo>/:by-questions/<int:index>/',
+             views.recheck_index, name='check_index'),
 
     path('asgn/<code>/<subcode>/<int:promo>/:status/',
              views.status, name='status'),

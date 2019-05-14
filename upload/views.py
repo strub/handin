@@ -89,6 +89,7 @@ REFRESH  = 60
 MAXFILES = 10
 MAXSIZE  = 256 * 1024
 MINDELTA = 10
+BOOL     = ('1', 'on')
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
@@ -716,7 +717,6 @@ def uploads_by_login(request, code, subcode, promo, login):
 
     ctx = dict(the = the, rqs = rqs, qst = qst, user = user,
                nav = _build_nav(request.user, the))
-    ctx['refresh'] = REFRESH
 
     return dutils.render(request, 'uploads_by_login.html', ctx)
 
@@ -738,7 +738,6 @@ def upload_details_by_login_index(request, code, subcode, promo, login, index):
 
     context = dict(the = the, index = index, hdns = hdn,
                    nav = _build_nav(request.user, the))
-    context['refresh'] = REFRESH
 
     return dutils.render(request, 'upload_details_by_login_index.html', context)
 
@@ -765,7 +764,6 @@ def upload_details_by_uuid(request, code, subcode, promo, uuid):
 
     context = dict(the = the, hdn = hdn, idx = idx+1, count = len(oth),
                    nav = _build_nav(request.user, the))
-    context['refresh'] = REFRESH
 
     return dutils.render(request, 'upload_details.html', context)
 
@@ -937,6 +935,32 @@ def download_uuid(request, code, subcode, promo, uuid):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
+def download_uuid_data(request, code, subcode, promo, uuid):
+    import base64
+
+    the = get_assignment(request, code, subcode, promo)
+    qst = questions_of_contents(the.contents)
+    hdn = models.HandIn.objects \
+                .filter(assignment = the, uuid = uuid) \
+                .first()
+
+    if hdn is None:
+        raise http.Http404('unknown handin UUID for assignment')
+
+    resources = models.HandInFile.objects.filter(handin = hdn).all()
+    json      = []
+
+    for resource in resources:
+        with resource.contents.open('rb') as stream:
+            contents = base64.b64encode(stream.read()).decode('ascii');
+            json.append(dict(name = resource.name, contents = contents))
+
+    return http.JsonResponse(dict(resources = json))
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
 def download_all(request, code, subcode, promo):
     the = get_assignment(request, code, subcode, promo)
     handins = models.HandIn.objects \
@@ -1074,7 +1098,7 @@ def handin(request, code, subcode, promo, index):
                 (MINDELTA - diffd.total_seconds()))
         return dutils.redirect(url)
 
-    reuse   = request.POST.get('files-reuse', '').lower() in ('1', 'true')
+    reuse   = request.POST.get('files-reuse', '').lower() in BOOL
     rmap    = set()
     rlist   = []
     missing = reqs.difference([x.name for x in files])
@@ -1084,12 +1108,12 @@ def handin(request, code, subcode, promo, index):
             for hdn in models.HandIn.objects \
                              .filter(assignment = the,
                                      user = request.user,
-                                     index__gte = index) \
+                                     index__lte = index) \
                              .defer('log') \
                              .order_by('-index', '-date') \
                              .all():
     
-                if hdn in rmap:
+                if hdn.index in rmap:
                     continue
     
                 rmap.add(hdn.index)
@@ -1339,13 +1363,16 @@ def resource(request, code, subcode, promo, name):
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def recheck(request, code, subcode, promo):
+    force = request.GET.get('force', '').lower() in BOOL
+    flt   = Q() if force else Q(status = '')
+
     handins = models.HandIn.objects \
                     .select_related('assignment', 'user') \
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
-                    .filter(status = '') \
-                    .order_by('date') \
+                    .filter(flt) \
+                    .order_by('-date') \
                     .all()
 
     with db.transaction.atomic():
@@ -1359,46 +1386,100 @@ def recheck(request, code, subcode, promo):
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def recheck_user(request, code, subcode, promo, login):
-    handins = dict()
-
-    for handin in \
-        models.HandIn.objects \
-                     .select_related('assignment', 'user') \
-                     .filter(assignment__code = code, \
-                             assignment__subcode = subcode, \
-                             assignment__promo = promo) \
-                     .filter(user__login = login) \
-                     .order_by('date') \
-                     .all():
-
-        handins.setdefault(handin.index, []).append(handin)
-
-    handins =  { k: v[-1] for k, v in handins.items() }
+    force   = request.GET.get('force', '').lower() in BOOL
+    deep    = request.GET.get('deep' , '').lower() in BOOL
+    handins = set()
+    count   = 0
 
     with db.transaction.atomic():
-        for handin in handins.values():
-            _defer_check(handin)
+        for handin in \
+            models.HandIn.objects \
+                    .select_related('assignment', 'user') \
+                    .filter(assignment__code = code, \
+                            assignment__subcode = subcode, \
+                            assignment__promo = promo) \
+                    .filter(user__login = login) \
+                    .order_by('-date') \
+                    .defer('log') \
+                    .all():
 
-    return http.HttpResponse(str(len(handins)), content_type='text/plain')
+            if not deep:
+                if handin.index in handins:
+                    continue
+                handins.add(handin.index)
+
+            if not force and handin.status != '':
+                continue
+    
+            count += 1; _defer_check(handin)
+
+    return http.HttpResponse(str(count), content_type='text/plain')
+
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def recheck_index(request, code, subcode, promo, index):
+    force   = request.GET.get('force', '').lower() in BOOL
+    deep    = request.GET.get('deep' , '').lower() in BOOL
+    handins = set()
+    count   = 0
+
+    with db.transaction.atomic():
+        for handin in \
+            models.HandIn.objects \
+                    .select_related('assignment', 'user') \
+                    .filter(assignment__code = code, \
+                            assignment__subcode = subcode, \
+                            assignment__promo = promo) \
+                    .filter(index = index) \
+                    .order_by('-date') \
+                    .defer('log') \
+                    .all():
+    
+            if not deep:
+                key = handin.index, handin.user.login
+                if key in handins:
+                    continue
+                handins.add(key)
+
+            if not force and handin.status != '':
+                continue
+
+            count += 1; _defer_check(handin)
+
+    return http.HttpResponse(str(count), content_type='text/plain')
 
 # --------------------------------------------------------------------
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
 def recheck_user_index(request, code, subcode, promo, login, index):
-    handin = models.HandIn.objects \
+    force = request.GET.get('force', '').lower() in BOOL
+    deep  = request.GET.get('deep' , '').lower() in BOOL
+
+    handins = models.HandIn.objects \
                           .select_related('assignment', 'user') \
                           .filter(assignment__code = code, \
                                   assignment__subcode = subcode, \
                                   assignment__promo = promo) \
                           .filter(user__login = login, index = index) \
-                          .order_by('date') \
-                          .first()
+                          .order_by('-date') \
+                          .defer('log') \
+                          .all()
 
-    if handin is not None:
-        _defer_check(handin)
+    if not deep:
+        handins = [handins[0]]
 
-    return http.HttpResponse('1' if handin else '0', content_type='text/plain')
+    if not force:
+        handins = [x for x in handins if x.status == '']
+
+    with db.transaction.atomic():
+        for handin in handins:
+            _defer_check(handin)
+
+    return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
 # --------------------------------------------------------------------
 @login_required
