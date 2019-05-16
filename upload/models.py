@@ -94,7 +94,7 @@ class Resource(models.Model):
     assignment = models.ForeignKey(Assignment, on_delete = models.CASCADE)
     name       = models.CharField(max_length = 256)
     ctype      = models.CharField(max_length = 128)
-    contents   = models.FileField(upload_to = resource_upload)
+    contents   = models.FileField(max_length = 1024, upload_to = resource_upload)
     namespace  = models.CharField(max_length = 128)
 
     def get_absolute_url(self):
@@ -120,9 +120,10 @@ class HandIn(models.Model):
 # --------------------------------------------------------------------
 def handin_upload(instance, filename):
     the = instance.handin.assignment
-    return 'handins/%s/%s/%d/%s/%s' % \
+    return 'handins/%s/%s/%d/%s/%s/%s' % \
                (the.code, the.subcode, the.promo,
-                instance.handin.user.login, filename)
+                instance.handin.user.login,
+                instance.uuid, filename)
 
 # --------------------------------------------------------------------
 class HandInFile(models.Model):
@@ -131,4 +132,4 @@ class HandInFile(models.Model):
                                   default     = uuid.uuid4)
     handin     = models.ForeignKey(HandIn, on_delete = models.CASCADE)
     name       = models.CharField(max_length = 256)
-    contents   = models.FileField(upload_to = handin_upload)
+    contents   = models.FileField(max_length = 1024, upload_to = handin_upload)
