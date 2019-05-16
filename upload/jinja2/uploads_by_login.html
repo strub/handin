@@ -4,8 +4,8 @@
 {% block title %}My uploads{% endblock %}
 
 {% block headendcontents %}
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/default.min.css"
-      integrity="sha384-ut3ELVx81ErZQaaMTknSmGb0CEGAKoBFTamRcY1ddG4guN0aoga4C+B6B7Kv1Ll1" crossorigin="anonymous">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/github.min.css"
+      integrity="sha384-snvkDYLVttT3SBWz8WVvdGfmManlusUoAT3Agqco/8yBV7/tlflWJCUmP2O9f9wF" crossorigin="anonymous">
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"
         integrity="sha384-CWWTkjyKvLwc1j/u6LmdJiGCWFkQtH9MxBpmgzrFFwMhF5qM2u/FzXrhV3nUfs0l" crossorigin="anonymous"></script>
@@ -48,7 +48,7 @@
     <td>{{ date(rqs[q].date) }}</td>
     <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
     <td class="text-center">
-      <a href="#" onclick="display_resources({{ q }}, '{{ rqs[q].uuid }}')">
+      <a href="#" onclick="display_resources({{ q }}, '{{ rqs[q].uuid }}'); return false;">
         <span class="far fa-eye"></span>
       </a>
       &nbsp;
@@ -114,7 +114,7 @@ function display_resources(idx, uuid) {
               .attr('href', '#files-modal-file-' + i)
               .text(data.resources[i].name)));
       panes.append(
-        $('<div class="tab-pane fade show p-3" role="tabpanel">')
+        $('<div class="tab-pane p-3" role="tabpanel">')
           .attr('id', 'files-modal-file-' + i)
           .append($('<pre>')
                     .append($('<code>')
