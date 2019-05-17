@@ -42,6 +42,7 @@ number of students that submitted at least once in that assigment. (=
 {% set q3 = stats[idx].ko %}
 {% set q4 = stats[idx].er %}
 {% set q  = q1+q2+q3+q4 %}
+{% set u  = [users, 1] | max %}
   <tr>
     <td class="text-nowrap">
       <a target="_blank" href="{{ url('upload:download_index', the.code, the.subcode, the.promo, q) }}">
@@ -51,19 +52,19 @@ number of students that submitted at least once in that assigment. (=
     </td>
     <td style="vertical-align: middle;">
     <div class="progress progress-thin">
-      <div class="progress-bar bg-success progress-bar-striped" style="width: {{ (100*q1/users) | round(2) }}%;"></div>
-      <div class="progress-bar bg-warning progress-bar-striped" style="width: {{ (100*q2/users) | round(2) }}%;"></div>
-      <div class="progress-bar bg-danger  progress-bar-striped" style="width: {{ (100*q3/users) | round(2) }}%;"></div>
-      <div class="progress-bar bg-info    progress-bar-striped" style="width: {{ (100*q4/users) | round(2) }}%;"></div>
+      <div class="progress-bar bg-success progress-bar-striped" style="width: {{ (100*q1/u) | round(2) }}%;"></div>
+      <div class="progress-bar bg-warning progress-bar-striped" style="width: {{ (100*q2/u) | round(2) }}%;"></div>
+      <div class="progress-bar bg-danger  progress-bar-striped" style="width: {{ (100*q3/u) | round(2) }}%;"></div>
+      <div class="progress-bar bg-info    progress-bar-striped" style="width: {{ (100*q4/u) | round(2) }}%;"></div>
     </div>
     <div class="small">
       ({{ q1 }} / {{ q2 }} / {{ q3 }} / {{ q4 }} = {{ q }})
       &mdash;
-      ( {{ (q1/users*100) | round(1) }}%
-      / {{ (q2/users*100) | round(1) }}%
-      / {{ (q3/users*100) | round(1) }}%
-      / {{ (q4/users*100) | round(1) }}%
-      = {{ (q /users*100) | round(1) }}%)
+      ( {{ (q1/u*100) | round(1) }}%
+      / {{ (q2/u*100) | round(1) }}%
+      / {{ (q3/u*100) | round(1) }}%
+      / {{ (q4/u*100) | round(1) }}%
+      = {{ (q /u*100) | round(1) }}%)
     </div>
     </td>
   </tr>
