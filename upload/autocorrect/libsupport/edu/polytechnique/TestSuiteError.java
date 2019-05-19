@@ -6,9 +6,9 @@ public class TestSuiteError extends Exception {
   private final String    error;
   private final Throwable exn;
 
-  public TestSuiteError(String message) {
+  public TestSuiteError(String message, Object... args) {
     super(message);
-    this.error = message;
+    this.error = String.format(message, args);
     this.exn   = null;
   }
 

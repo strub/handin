@@ -130,6 +130,17 @@ SCHEMA = dict(
                 ),
             ),
         ),
+        map = dict(
+            type  = 'array',
+            items = dict(
+                type       = 'object',
+                properties = dict(
+                    pattern     = dict(type = 'string'),
+                    destination = dict(type = 'string'),
+                ),
+                required = ['pattern', 'destination'],
+            ),
+        ),
         resources = RSCHEMA,
         autocorrect = dict(
             type = 'object',
@@ -283,10 +294,19 @@ def _defer_check_internal(uuid):
         log = []
 
         with tempfile.TemporaryDirectory() as srcdir:
+            jaildir = os.path.realpath(srcdir)
+
             with tempfile.TemporaryDirectory() as tstdir:
                 log += ['copying files...']
     
                 for filename in totest:
+                    outname = os.path.join(srcdir, the.filemap(filename.name))
+                    
+                    if os.path.commonprefix([jaildir, os.path.dirname(outname)]) != jaildir:
+                        raise ValueError('insecure file-map')
+
+                    os.makedirs(os.path.dirname(outname), exist_ok = True)
+
                     if do_recode(filename.contents.path):
                         coddet = chardet.universaldetector.UniversalDetector()
                         with filename.contents.open('br') as stream:
@@ -294,13 +314,10 @@ def _defer_check_internal(uuid):
                         coddet.reset(); coddet.feed(contents); coddet.close()
                         encoding = coddet.result['encoding'] or 'ascii'
                         contents = codecs.decode(contents, encoding)
-                        outname  = os.path.basename(filename.name)
-                        outname  = os.path.join(srcdir, outname)
                         with open(outname, 'wb') as stream:
                             stream.write(codecs.encode(contents, 'utf-8'))
                     else:
-                        shutil.copy(filename.contents.path,
-                                    os.path.join(srcdir, filename.name))
+                        shutil.copy(filename.contents.path, outname)
 
                 shutil.copy(test.contents.path,
                             os.path.join(srcdir, test.name))
@@ -1324,7 +1341,8 @@ class Assignment(views.generic.TemplateView):
                    end        = jso['end'],
                    contents   = jso['contents'],
                    tests      = [],
-                   properties = dict(required = jso.get('required', dict())))
+                   properties = dict(required = jso.get('required', dict()),
+                                     map      = jso.get('map', [])))
 
         if acorrect is not None:
             dfl['tests'] = acorrect['forno']

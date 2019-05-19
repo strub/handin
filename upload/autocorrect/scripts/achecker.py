@@ -1,7 +1,7 @@
 #! /usr/bin/env python3
 
 # --------------------------------------------------------------------
-import sys, os, re, subprocess as sp, logging, tempfile
+import sys, os, re, subprocess as sp, logging, tempfile, shutil
 
 # --------------------------------------------------------------------
 class TestSuiteError(Exception):
@@ -18,7 +18,6 @@ class TestSuiteRunner(object):
         self._lib     = os.path.join(workdir, 'lib' )
         self._src     = os.path.join(workdir, 'src' )
         self._test    = os.path.join(workdir, 'test')
-        self._java    = ['java', '-cp', '%s:.' % (self._clazz,)]
 
     entry   = property(lambda self : self._entry)
     workdir = property(lambda self : self._workdir)
@@ -36,28 +35,35 @@ class TestSuiteRunner(object):
         except (OSError, sp.CalledProcessError) as e:
             logging.error('cannot compile libsupport: %s' % (e,))
             raise TestSuiteError
+        for filename in os.listdir(self._lib):
+            if os.path.splitext(filename)[1] == '.jar':
+                shutil.copy(
+                    os.path.join(self._lib, filename),
+                    os.path.join(self._clazz, filename))
         logging.info('...done')
 
     def _compile_project(self):
         logging.info('compiling your files (with test-suite)...')
         try:
-            java = os.listdir(self._src)
-            java = [x for x in java \
-                       if os.path.splitext(x)[1].lower() == '.java']
-            java = [os.path.join(self._src, x) for x in java]
-            cmd  = ['javac', '-cp', self._clazz,'-d', self._clazz,
-                    '-sourcepath', '%s:%s' % (self._src, self._test)]
+            java = []
+            for root, dirs, files in os.walk(self._src):
+                for filename in files:
+                    if os.path.splitext(filename)[1].lower() == '.java':
+                        java.append(os.path.join(root, filename))
+            cmd  = ['javac', '-cp', '%s/*:%s:.' % (self._test, self._clazz),
+                    '-d', self._clazz, '-sourcepath', '%s:%s' % (self._src, self._test)]
             cmd += java
             sp.check_call(cmd, cwd = self.workdir)
         except sp.CalledProcessError as e:
             logging.error('cannot compile your project')
             raise TestSuiteError
         logging.info('...done')
-        
+
     def _run_tests(self):
         logging.info('executing test...')
         try:
-            cmd = self._java + [self.RUNNER, self.entry]
+            cmd  = ['java', '-cp', '%s/*:%s:.' % (self._test, self._clazz)]
+            cmd += [self.RUNNER, self.entry]
             sp.check_call(cmd, cwd = self.workdir)
         except sp.CalledProcessError as e:
             logging.error('failure: %s' % (e,))

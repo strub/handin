@@ -86,6 +86,20 @@ def validate_required(reqs):
         raise Error('invalid req-files list')
 
 # --------------------------------------------------------------------
+def validate_map(maps):
+    try:
+        maps, aout = maps.split(), []
+        for map in maps:
+            if ':' not in map:
+                raise ValueError
+            map = map.split(':', 2)
+            aout.append(dict(pattern = map[0], destination = map[1]))
+        return aout
+
+    except ValueError:
+        raise Error('invalid map-files list')
+
+# --------------------------------------------------------------------
 def encode_resource(r):
     return dict(
         name     = r[0],
@@ -122,6 +136,7 @@ def read_options(filename):
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
         options.required    = config.get(ASECTION, 'required' , fallback = '')
+        options.map         = config.get(ASECTION, 'map'      , fallback = '')
         options.autocorrect = None
 
         if config.has_section(CSECTION):
@@ -154,6 +169,7 @@ def _main():
         options.promo     = validate_promo    (options.promo)
         options.markdown  = read_file         (options.markdown, charset = 'utf-8')
         options.required  = validate_required (options.required)
+        options.map       = validate_map      (options.map)
         options.resources = validate_resources(options.resources, base)
         acorrect          = options.autocorrect
 
@@ -189,6 +205,9 @@ def _main():
 
         if options.required:
             dta['required'] = options.required
+
+        if options.map:
+            dta['map'] = options.map
 
         if acorrect is not None:
             dta['autocorrect'] = dict(

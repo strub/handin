@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import uuid, collections
+import uuid, collections, fnmatch
 
 from django.conf import settings
 from django.db import models
@@ -76,6 +76,15 @@ class Assignment(models.Model):
                 aout.add(req); break
 
         return aout
+
+    def filemap(self, filename):
+        if self.properties is None:
+            return filename
+        fmap = self.properties.get('map', [])
+        for pattern, destination in fmap:
+            if fnmatch.fnmatch(filename, pattern):
+                return os.path.join(*(destination.split('/') + [filename]))
+        return filename
 
     def __str__(self):
         return '%s (%s) - %s' % (self.code, self.promo, self.subcode)

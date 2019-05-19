@@ -4,6 +4,7 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Locale;
 import java.util.logging.Logger;
 
 public class TestSuiteRunner {
@@ -13,6 +14,9 @@ public class TestSuiteRunner {
   }
 
   public static void main(String[] args) throws Exception {
+    System.setProperty("java.awt.headless", "true");
+    Locale.setDefault(new Locale("en_US"));
+    
     System.setProperty(
         "java.util.logging.SimpleFormatter.format", 
         "[%4$-8s] [%1$tF %1$tT] %5$s%6$s%n");
