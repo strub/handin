@@ -117,12 +117,15 @@
       {% if request.user.is_authenticated and nav is defined and nav.inasgn %}
       <div id="status">
         <div class="text-nowrap">
-          <span class="badge badge-pill badge-success" id="status-ok"
-                data-toggle="tooltip" data-placement="bottom" title="">-</span>
-          <span class="badge badge-pill badge-warning" id="status-mb"
-                data-toggle="tooltip" data-placement="bottom" title="">-</span>
-          <span class="badge badge-pill badge-danger"  id="status-ko"
-                data-toggle="tooltip" data-placement="bottom" title="">-</span>
+          <a class="badge badge-pill badge-success" id="status-ok"
+             href="{{ url('upload:myuploads', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}"
+             data-toggle="tooltip" data-placement="bottom" title="">-</a>
+          <a class="badge badge-pill badge-warning" id="status-mb"
+             href="{{ url('upload:myuploads', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}"
+             data-toggle="tooltip" data-placement="bottom" title="">-</a>
+          <a class="badge badge-pill badge-danger"  id="status-ko"
+             href="{{ url('upload:myuploads', nav.inasgn.code, nav.inasgn.subcode, nav.inasgn.promo) }}"
+             data-toggle="tooltip" data-placement="bottom" title="">-</a>
         </div>
       </div>
       {% endif %}
