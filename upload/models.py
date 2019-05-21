@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import uuid, collections, fnmatch
+import uuid, collections, fnmatch, datetime as dt
 
 from django.conf import settings
 from django.db import models
@@ -55,6 +55,12 @@ class Assignment(models.Model):
     @property
     def key(self):
         return (self.code, self.subcode, self.promo)
+
+    @property
+    def endc(self):
+        return \
+              dt.datetime.combine(self.end, dt.time()) \
+            - dt.timedelta(seconds = 1)
 
     def get_absolute_url(self):
         from django.urls import reverse
@@ -115,6 +121,14 @@ class Resource(models.Model):
         return '%s (%s)' % (self.name, self.assignment)
 
 # --------------------------------------------------------------------
+def handin_artifact(instance, filename):
+    the = instance.assignment
+    return 'handins/%s/%s/%d/%s/%s-artifacts/%s' % \
+               (the.code, the.subcode, the.promo,
+                instance.user.login,
+                instance.uuid, filename)
+
+# --------------------------------------------------------------------
 class HandIn(models.Model):
     uuid       = models.UUIDField(editable    = False,
                                   primary_key = True,
@@ -125,6 +139,7 @@ class HandIn(models.Model):
     date       = models.DateTimeField(auto_now_add = True)
     status     = models.CharField(max_length = 16, blank = True)
     log        = models.TextField(blank = True)
+    artifact   = models.FileField(max_length = 1024, upload_to = handin_artifact, blank = True)
 
 # --------------------------------------------------------------------
 def handin_upload(instance, filename):

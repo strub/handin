@@ -6,35 +6,12 @@
 {% block contents %}
 <p class="alert alert-info">Last update: {{ date(now()) }}</p>
 
-{% if hdns|length %}
-<dl class="row">
-  <dt class="col-sm-3">Student</dt>
-  <dd class="col-sm-9">{{ hdns.0.user.fullname }}</dd>
-  <dt class="col-sm-3">
-    Download
-    <a href="{{ url('upload:download_login_index', the.code, the.subcode, the.promo, hdns.0.user.login, index) }}">
-      <span class="fa fa-download"></span>
-    </a>
-  </dt>
-  <dd class="col-sm-9">
-    {{ the.code }} - {{ the.subcode }} - {{ index }} - #{{ hdns|length }}
-  </dd>
-  <dt class="col-sm-3">Submission date</dt>
-  <dd class="col-sm-9">{{ date(hdns.0.date) }}</dd>
-  <dt class="col-sm-3">Status</dt>
-  <dd class="col-sm-9">
-    <span class="{{ macros.status(hdns.0.status) }}"></span>
-    ({{ macros.statustxt(hdns.0.status) }})
-  </dd>
-  <dt class="col-sm-3">Log</dt>
-  <dd class="col-sm-9">
-  {% if hdns.0.log %}
-  <pre class="console"><code>{{ hdns.0.log }}</code></pre>
-  {% else %}
-  <em>No logs</em>
-  {% endif %}
-  </dd>
-</dl>
+{% set links = dict(
+      download = 'upload:download_login_index',
+      artifact = 'upload:artifact_login_index') %}
+
+{% if data %}
+{{ macros.upload_details(data, (data.hdn.user.login, data.hdn.index), links) }}
 {% else %}
 <p class="alert alert-warning">No submissions</p>
 {% endif %}

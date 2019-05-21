@@ -61,11 +61,17 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/<int:index>/',
              views.download_login_index, name='download_login_index'),
 
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<uuid:uuid>',
+             views.artifact_login_index, name='artifact_login_index'),
+
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>',
              views.download_uuid, name='download_uuid'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>/:data/',
              views.download_uuid_data, name='download_uuid_data'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<uuid:uuid>',
+             views.artifact_uuid, name='artifact_uuid'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:my/',
              views.myuploads, name='myuploads'),
@@ -73,8 +79,11 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:my/<int:index>/',
              views.myupload_details, name='myupload'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/download/<int:index>/',
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/:download/<int:index>/',
              views.download_myupload, name='myupload-dw'),
+
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/:artifacts/<int:index>/',
+             views.artifacts_myupload, name='myupload-art'),
 
     path('agns/<code>/<subcode>/<int:promo>/resources/<path:name>',
              views.resource, name='resource'),

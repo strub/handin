@@ -1,6 +1,7 @@
 package edu.polytechnique;
 
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractTestSuite implements ITestSuite {
   @Override
@@ -8,7 +9,7 @@ public abstract class AbstractTestSuite implements ITestSuite {
     return this.getClass().getName().replace('_', ' ');
   }
 
-  public <T> void check_eq(T submitted, T expected) throws TestSuiteError {
+  public <T> void check_eq(T submitted, T expected) throws TestSuiteError, ExecutionException {
     final boolean success = Objects.equals(expected, submitted);
 
     if (!success) {

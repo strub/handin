@@ -21,3 +21,57 @@ fa {{ values.get(code, 'question-circle') }}
    } -%}
 {{ values.get(code, '<unknown>') }}
 {%- endmacro %}
+
+{% macro upload_details(data, key, links, dstudent = True) -%}
+<dl class="row">
+  {% if dstudent %}
+  <dt class="col-sm-3">Student</dt>
+  <dd class="col-sm-9">{{ data.hdn.user.fullname }}</dd>
+  {% endif %}
+  <dt class="col-sm-3">
+    Download
+    <a href="{{ url(links['download'], data.asgn.code, data.asgn.subcode, data.asgn.promo, *key) }}">
+      <span class="fa fa-download"></span>
+    </a>
+  </dt>
+  <dd class="col-sm-9">
+    {{ data.asgn.code }} - {{ data.asgn.subcode }} - {{ data.hdn.index }} - #{{ data.cnt.0 }} / {{ data.cnt.1 }}
+  </dd>
+  <dt class="col-sm-3">Submission date</dt>
+  <dd class="col-sm-9">{{ date(data.hdn.date) }}</dd>
+  <dt class="col-sm-3">Status</dt>
+  <dd class="col-sm-9">
+    <span class="{{ status(data.hdn.status) }}"></span>
+    ({{ statustxt(data.hdn.status) }})
+  </dd>
+  {% if data.hdn.artifact.name %}
+  <dt class="col-sm-3">Artifacts</dt>
+  <dd class="col-sm-9">
+    <a href="{{ url(links['artifact'], data.asgn.code, data.asgn.subcode, data.asgn.promo, *key) }}">
+      Download &nbsp; <span class="fa fa-download"></span>
+    </a>
+
+    {% if False and data.fls %}
+    <form onsubmit="return false;">
+      <div class="form-group">
+        <select id="fl" class="custom-select">
+          <option value="" selected>---</option>
+          {% for fl in data.fls %}
+          <option value="{{ fl }}">{{ fl }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </form>
+    {% endif %}
+  </dd>
+  {% endif %}
+  <dt class="col-sm-3">Log</dt>
+  <dd class="col-sm-9">
+  {% if data.hdn.log %}
+  <pre class="console"><code>{{ data.hdn.log }}</code></pre>
+  {% else %}
+  <em>No logs</em>
+  {% endif %}
+  </dd>
+</dl>
+{%- endmacro %}

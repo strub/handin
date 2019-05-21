@@ -5,6 +5,7 @@ import java.io.StringWriter;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.Logger;
 
 public class TestSuiteRunner {
@@ -13,7 +14,7 @@ public class TestSuiteRunner {
       .format(Calendar.getInstance().getTime());
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) throws Throwable {
     System.setProperty("java.awt.headless", "true");
     Locale.setDefault(new Locale("en_US"));
     
@@ -51,6 +52,8 @@ public class TestSuiteRunner {
         logger.severe(sw.toString());
       }
       failure = true;
+    } catch (ExecutionException e) {
+      throw e.getCause();
     }
     logger.info("test-end-time: " + getTS());
 

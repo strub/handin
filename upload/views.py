@@ -38,6 +38,13 @@ ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
 ROOT  = os.path.dirname(__file__)
 
 # --------------------------------------------------------------------
+def _noexn(cb):
+    try:
+        cb()
+    except:
+        pass
+
+# --------------------------------------------------------------------
 def sort_groupby(iterable, key):
     return it.groupby(sorted(iterable, key=key), key=key)
 
@@ -257,9 +264,16 @@ def _build_nav(user, the, back = True):
 
 # --------------------------------------------------------------------
 def _defer_check_internal(uuid):
-    hdn = models.HandIn.objects.get(pk = uuid)
+    hdn = models.HandIn.objects \
+                       .select_related('user', 'assignment') \
+                       .defer('assignment__contents') \
+                       .get(pk = uuid)
     the = hdn.assignment
     qst = questions_of_contents(the.contents)
+
+    hdn.artifact.name = ''
+    hdn.status        = ''
+    hdn.save()
 
     if hdn.index not in qst or hdn.index not in the.tests:
         hdn.status = 'no-test'; hdn.save()
@@ -296,13 +310,17 @@ def _defer_check_internal(uuid):
         with tempfile.TemporaryDirectory() as srcdir:
             jaildir = os.path.realpath(srcdir)
 
-            with tempfile.TemporaryDirectory() as tstdir:
+            with tempfile.TemporaryDirectory() as tstdir, \
+                 tempfile.TemporaryDirectory() as artdir:
+
                 log += ['copying files...']
     
                 for filename in totest:
                     outname = os.path.join(srcdir, the.filemap(filename.name))
                     
-                    if os.path.commonprefix([jaildir, os.path.dirname(outname)]) != jaildir:
+                    if os.path.commonprefix \
+                       ([jaildir, os.path.realpath(os.path.dirname(outname))]) != jaildir:
+
                         raise ValueError('insecure file-map')
 
                     os.makedirs(os.path.dirname(outname), exist_ok = True)
@@ -343,6 +361,8 @@ def _defer_check_internal(uuid):
                             dict(bind = '/opt/handin/user/src', mode = 'rw'),
                         os.path.realpath(tstdir): \
                             dict(bind = '/opt/handin/user/test', mode = 'rw'),
+                        os.path.realpath(artdir): \
+                            dict(bind = '/opt/handin/user/artifacts', mode = 'rw'),
                         os.path.join(ACDIR, 'libsupport'): \
                             dict(bind = '/opt/handin/user/lib', mode = 'ro'),
                         os.path.join(ACDIR, 'scripts'): \
@@ -386,6 +406,17 @@ def _defer_check_internal(uuid):
                         container.remove(v = True, force = True)
                     except docker.errors.APIError:
                         pass
+
+                if os.listdir(artdir):
+                    fd, tmpzip = tempfile.mkstemp()
+                    _noexn(lambda : fd.close())
+                    try:
+                        shutil.make_archive(tmpzip, 'zip', artdir)
+                        with open(tmpzip + '.zip', 'rb') as zipstream:
+                            hdn.artifact.save('artifacts.zip', File(zipstream))
+                    finally:
+                        _noexn(lambda : os.unlink(tmpzip))
+                        _noexn(lambda : os.unlink(tmpzip + '.zip'))
 
     except Exception as e:
         log += [repr(e)]
@@ -634,7 +665,7 @@ def uploads_by_questions(request, code, subcode, promo):
         .select_related('user') \
         .filter(assignment = the, user__cls = 'Etudiants') \
         .order_by('-date') \
-        .defer('log') \
+        .defer('log', 'artifact') \
         .all()
 
     users   = set()
@@ -675,13 +706,14 @@ def uploads_by_submissions(request, code, subcode, promo):
                            .select_related('user') \
                            .filter(assignment = the) \
                            .order_by('-date') \
-                           .defer('log') \
+                           .defer('log', 'artifact') \
                            .all()
     uploads = paginator.Paginator(uploads, 100).get_page(request.GET.get('page'))
 
     context = dict(
         the = the, qst = qst, uploads = uploads,
         nav = _build_nav(request.user, the))
+    context['refresh'] = REFRESH
 
     return dutils.render(request, 'uploads_by_submissions.html', context)
 
@@ -739,53 +771,6 @@ def uploads_by_login(request, code, subcode, promo, login):
 
 # --------------------------------------------------------------------
 @login_required
-@permission_required('upload.admin', raise_exception=True)
-@dhttp.require_GET
-def upload_details_by_login_index(request, code, subcode, promo, login, index):
-    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
-    the  = get_assignment(request, code, subcode, promo)
-    qst  = questions_of_contents(the.contents)
-
-    if index not in qst:
-        raise http.Http404('unknown index')
-
-    hdn = models.HandIn.objects \
-                .filter(user = user, assignment = the, index = index) \
-                .order_by('-date').all()[:]
-
-    context = dict(the = the, index = index, hdns = hdn,
-                   nav = _build_nav(request.user, the))
-
-    return dutils.render(request, 'upload_details_by_login_index.html', context)
-
-# --------------------------------------------------------------------
-@login_required
-@permission_required('upload.admin', raise_exception=True)
-@dhttp.require_GET
-def upload_details_by_uuid(request, code, subcode, promo, uuid):
-    the  = get_assignment(request, code, subcode, promo)
-    qst  = questions_of_contents(the.contents)
-    hdn  = models.HandIn.objects \
-                 .filter(assignment = the, uuid = uuid) \
-                 .first()
-    oth  = sorted(
-        models.HandIn.objects \
-            .filter(assignment = the, user = hdn.user, index = hdn.index) \
-            .values('uuid', 'date') \
-            .all(),
-        key = lambda x : x['date'])
-    idx  = { x['uuid']: i for i, x in enumerate(oth) }[hdn.uuid]
-
-    if hdn is None:
-        raise http.Http404('unknown handin UUID for assignment')
-
-    context = dict(the = the, hdn = hdn, idx = idx+1, count = len(oth),
-                   nav = _build_nav(request.user, the))
-
-    return dutils.render(request, 'upload_details.html', context)
-
-# --------------------------------------------------------------------
-@login_required
 @dhttp.require_GET
 def myuploads(request, code, subcode, promo):
     the = get_assignment(request, code, subcode, promo)
@@ -810,24 +795,67 @@ def myuploads(request, code, subcode, promo):
     return dutils.render(request, 'myuploads.html', ctx)
 
 # --------------------------------------------------------------------
+def _upload_details(request, code, subcode, promo, flt, view, must):
+    the = get_assignment(request, code, subcode, promo)
+    hdn = models.HandIn.objects \
+                .select_related('user') \
+                .filter(assignment = the) \
+                .filter(flt) \
+                .order_by('-date') \
+                .first()
+    dat = None
+
+    if hdn is None:
+        if must:
+            raise http.Http404('no handin')
+    else:
+        cnt = list(models.HandIn.objects \
+                    .filter(assignment = the, user = hdn.user, index = hdn.index) \
+                    .order_by('-date') \
+                    .values('uuid', 'date') \
+                    .all())
+        cnt = sorted(cnt, key = lambda x : x['date'])
+        cnt = ({ x['uuid']: i for i, x in enumerate(cnt) }[hdn.uuid] + 1, len(cnt))
+        fls = []
+
+        if hdn.artifact.name:
+            fls = zipfile.ZipFile(hdn.artifact.path).namelist()
+            fls = [x for x in fls if os.path.splitext(x)[1].lower() == '.jpg']
+            fls = sorted(fls)
+
+        dat = dict(hdn = hdn, cnt = cnt, fls = fls, asgn = the)
+
+    context = dict(the = the, data = dat, nav = _build_nav(request.user, the))
+    context['refresh'] = REFRESH
+
+    return dutils.render(request, view, context)
+
+# --------------------------------------------------------------------
 @login_required
 @dhttp.require_GET
 def myupload_details(request, code, subcode, promo, index):
-    the = get_assignment(request, code, subcode, promo)
-    qst = questions_of_contents(the.contents)
+    view = 'myupload_details.html'
+    flt  = Q(user = request.user, index = index)
+    return _upload_details(request, code, subcode, promo, flt, view, False)
 
-    if index not in qst:
-        raise http.Http404('unknown index')
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def upload_details_by_uuid(request, code, subcode, promo, uuid):
+    view = 'upload_details.html'
+    flt  = Q(uuid = uuid)
+    return _upload_details(request, code, subcode, promo, flt, view, True)
 
-    hdn = models.HandIn.objects \
-                .filter(user = request.user, assignment = the, index = index) \
-                .order_by('-date').all()[:]
-
-    context = dict(the = the, index = index, hdns = hdn,
-                   nav = _build_nav(request.user, the))
-    context['refresh'] = REFRESH
-
-    return dutils.render(request, 'myupload_details.html', context)
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def upload_details_by_login_index(request, code, subcode, promo, login, index):
+    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    view = 'upload_details_by_login_index.html'
+    flt  = Q(user = user, index = index)
+    return _upload_details(request, code, subcode, promo, flt, view, False)
 
 # --------------------------------------------------------------------
 def _download_handin(handin, resources, inline = True):
@@ -910,14 +938,35 @@ def _stream_handins(fname, pattern, handins):
     return response
 
 # --------------------------------------------------------------------
+def _fetch_artifact(request, code, subcode, promo, flt):
+    the = get_assignment(request, code, subcode, promo)
+
+    handin = models.HandIn.objects \
+        .select_related('user', 'assignment') \
+        .filter(assignment = the) \
+        .filter(flt) \
+        .defer('log', 'artifact', 'assignment__contents',
+               'assignment__properties', 'assignment__tests') \
+        .order_by('-date', 'user__login', 'index') \
+        .first()
+
+    if handin is None:
+        raise http.Http404('no handin')
+    if not handin.artifact.name:
+        raise http.Http404('no artifact for handin')
+
+    response = http.FileResponse(
+        handin.artifact.open(), content_type = 'application/zip')
+    response['Content-Disposition'] = \
+        'attachment; filename="artifacts.zip"'
+
+    return response
+
+# --------------------------------------------------------------------
 @login_required
 @dhttp.require_GET
 def download_myupload(request, code, subcode, promo, index):
     the = get_assignment(request, code, subcode, promo)
-    qst = questions_of_contents(the.contents)
-
-    if index not in qst:
-        raise http.Http404('unknown index')
 
     hdn = models.HandIn.objects \
                 .filter(user = request.user, assignment = the, index = index) \
@@ -929,6 +978,14 @@ def download_myupload(request, code, subcode, promo, index):
     resources = models.HandInFile.objects.filter(handin = hdn).all()
 
     return _download_handin(hdn, resources, inline = False)
+
+# --------------------------------------------------------------------
+@login_required
+@dhttp.require_GET
+def artifacts_myupload(request, code, subcode, promo, index):
+    flt  = Q(user = request.user, index = index)
+    args = [request, code, subcode, promo, flt]
+    return _fetch_artifact(*args)
 
 # --------------------------------------------------------------------
 @login_required
@@ -947,6 +1004,15 @@ def download_uuid(request, code, subcode, promo, uuid):
     resources = models.HandInFile.objects.filter(handin = hdn).all()
 
     return _download_handin(hdn, resources, inline = False)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def artifact_uuid(request, code, subcode, promo, uuid):
+    flt  = Q(uuid = uuid)
+    args = [request, code, subcode, promo, flt]
+    return _fetch_artifact(*args)
 
 # --------------------------------------------------------------------
 @login_required
@@ -983,7 +1049,7 @@ def download_all(request, code, subcode, promo):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the) \
-        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
@@ -1000,7 +1066,7 @@ def download_all_code_promo(request, code, promo):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment__code = code, assignment__promo = promo) \
-        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('assignment__subcode', '-date', 'user__login', 'index') \
         .all()
     handins = list(distinct_on(handins, lambda x : (x.user.login, x.index)))
@@ -1018,7 +1084,7 @@ def download_login(request, code, subcode, promo, login):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, user__login = login) \
-        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
@@ -1036,7 +1102,7 @@ def download_index(request, code, subcode, promo, index):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, index = index) \
-        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
@@ -1055,7 +1121,7 @@ def download_login_index(request, code, subcode, promo, login, index):
     handin = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, index = index, user__login = login) \
-        .defer('log', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .first()
 
@@ -1065,6 +1131,15 @@ def download_login_index(request, code, subcode, promo, login, index):
     resources = models.HandInFile.objects.filter(handin = handin).all()
 
     return _download_handin(handin, resources, inline = True)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def artifact_login_index(request, code, subcode, promo, login, index):
+    flt  = Q(user__login = login, index = index)
+    args = [request, code, subcode, promo, flt]
+    return _fetch_artifact(*args)
 
 # --------------------------------------------------------------------
 @login_required                 # FIXME
@@ -1126,7 +1201,7 @@ def handin(request, code, subcode, promo, index):
                              .filter(assignment = the,
                                      user = request.user,
                                      index__lte = index) \
-                             .defer('log') \
+                             .defer('log', 'artifact') \
                              .order_by('-index', '-date') \
                              .all():
     
@@ -1418,7 +1493,7 @@ def recheck_user(request, code, subcode, promo, login):
                             assignment__promo = promo) \
                     .filter(user__login = login) \
                     .order_by('-date') \
-                    .defer('log') \
+                    .defer('log', 'artifact') \
                     .all():
 
             if not deep:
@@ -1453,7 +1528,7 @@ def recheck_index(request, code, subcode, promo, index):
                             assignment__promo = promo) \
                     .filter(index = index) \
                     .order_by('-date') \
-                    .defer('log') \
+                    .defer('log', 'artifact') \
                     .all():
     
             if not deep:
@@ -1484,7 +1559,7 @@ def recheck_user_index(request, code, subcode, promo, login, index):
                                   assignment__promo = promo) \
                           .filter(user__login = login, index = index) \
                           .order_by('-date') \
-                          .defer('log') \
+                          .defer('log', 'artifact') \
                           .all()
 
     if not deep:

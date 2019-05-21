@@ -18,7 +18,7 @@
 {% if the.end is not none %}
 {% if now().date() < the.end %}
 <div class="alert alert-warning">
-  This assignment will be closed on {{ the.end.strftime('%B %d, %Y') }}.
+  This assignment will be closed on {{ the.endc.strftime('%B %d, %Y (%H:%M:%S)') }}.
 </div>
 {% else %}
 <div class="alert alert-warning">
