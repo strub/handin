@@ -3,7 +3,9 @@
   <head>
     <title>{% block title %}{% endblock %}</title>
 
-    <link rel="shortcut icon" type="image/png" href="{{ static('favicon.ico') }}">
+    <link rel="shortcut icon" href="{{ static('favicon.ico') }}" type="image/x-icon">
+    <link rel="icon" href="{{ static('favicon.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ static('favicon.png') }}" type="image/png">
 
     {% block headcontents %}{% endblock %}
 
