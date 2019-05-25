@@ -216,7 +216,7 @@ FORM = r'''
 F_REQUIRED     = '<div class="alert alert-light">Expected files: %s</div>'
 NO_SUBMIT      = '<div class="alert alert-danger">Upload form is only available when connected</div>'
 LATE_SUBMIT    = '<div class="alert alert-danger">Submissions are now closed</div>'
-LATE_OK_SUBMIT = '<div class="alert alert-danger">Your submission will be flaged as late</div>'
+LATE_OK_SUBMIT = '<div class="alert alert-danger">Your submission will be flagged as late</div>'
 LAST_SUBMIT    = '<div class="alert alert-info">Last submission: %s</div>'
 
 # --------------------------------------------------------------------
