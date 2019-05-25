@@ -80,7 +80,7 @@
     </td>
     <td>{{ upload.index }}</td>
     <td>
-      <span class="{{ macros.status(upload.status) }}"></span>
+      {{ macros.upload_status(upload) }}
       &nbsp;
       <a target="_blank" href="{{ url('upload:download_uuid', the.code, the.subcode, the.promo, upload.uuid) }}">
         <i class="fa fa-download"></i>

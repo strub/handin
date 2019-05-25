@@ -29,7 +29,7 @@
     <td>{{ q }}</td>
     {% if rqs[q] %}
     <td>{{ date(rqs[q].date) }}</td>
-    <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
+    <td>{{ macro.upload_status(rqs[q]) }}</span></td>
     <td class="text-center">
       <a href="{{ url('upload:myupload-dw', the.code, the.subcode, the.promo, q) }}">
         <span class="fa fa-download"></span>

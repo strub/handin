@@ -46,7 +46,7 @@
     <td>{{ q }}</td>
     {% if rqs[q] %}
     <td>{{ date(rqs[q].date) }}</td>
-    <td><span class="{{ macros.status(rqs[q].status) }}"></span></td>
+    <td>{{ macro.upload_status(rqs[q]) }}</span></td>
     <td class="text-center">
       <a href="#" onclick="display_resources({{ q }}, '{{ rqs[q].uuid }}'); return false;">
         <span class="far fa-eye"></span>

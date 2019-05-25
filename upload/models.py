@@ -46,6 +46,7 @@ class Assignment(models.Model):
     promo      = models.IntegerField()
     start      = models.DateField(null = True)
     end        = models.DateField(null = True)
+    lateok     = models.BooleanField(default = False)
     contents   = models.TextField()
     tests      = NatListField()
     properties = JSONField(null = True,
@@ -140,6 +141,12 @@ class HandIn(models.Model):
     status     = models.CharField(max_length = 16, blank = True)
     log        = models.TextField(blank = True)
     artifact   = models.FileField(max_length = 1024, upload_to = handin_artifact, blank = True)
+
+    @property
+    def late(self):
+        if self.assignment.end is None:
+            return False
+        return self.date.date() > self.assignment.end
 
 # --------------------------------------------------------------------
 def handin_upload(instance, filename):

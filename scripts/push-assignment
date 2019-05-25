@@ -47,6 +47,13 @@ def validate_date(date):
     return dt.datetime.strptime(date, '%Y-%m-%d').date()
 
 # --------------------------------------------------------------------
+def validate_bool(x):
+    try:
+        return bool(x)
+    except ValueError:
+        raise Error('invalid flag: %s' % (x,))
+
+# --------------------------------------------------------------------
 def validate_resources(resources, base):
     if not isinstance(resources, list):
         resources = resources.split()
@@ -133,6 +140,7 @@ def read_options(filename):
         options.promo       = config.get(ASECTION, 'promo'    )
         options.start       = config.get(ASECTION, 'start'    , fallback = None)
         options.end         = config.get(ASECTION, 'end'      , fallback = None)
+        options.lateok      = config.get(ASECTION, 'lateok'   , fallback = str(False))
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
         options.required    = config.get(ASECTION, 'required' , fallback = '')
@@ -167,6 +175,7 @@ def _main():
         options.code      = validate_code     (options.code)
         options.subcode   = validate_subcode  (options.subcode)
         options.promo     = validate_promo    (options.promo)
+        options.lateok    = validate_bool     (options.lateok)
         options.markdown  = read_file         (options.markdown, charset = 'utf-8')
         options.required  = validate_required (options.required)
         options.map       = validate_map      (options.map)
@@ -193,6 +202,7 @@ def _main():
             promo     = options.promo,
             start     = None,
             end       = None,
+            lateok    = options.lateok,
             contents  = options.markdown,
             resources = encode_resources(options.resources),
         )

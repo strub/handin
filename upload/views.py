@@ -123,6 +123,7 @@ SCHEMA = dict(
         promo       = dict(type = 'number', minimum = 1794),
         start       = dict(type = ['string', 'null'], format = 'date'),
         end         = dict(type = ['string', 'null'], format = 'date'),
+        lateok      = dict(type = ['boolean']),
         contents    = dict(type = 'string'),
         required    = dict(
             type = 'object',
@@ -160,7 +161,8 @@ SCHEMA = dict(
             required = ['forno', 'files', 'extra'],
         )
     ),
-    required = ['code', 'subcode', 'promo', 'start', 'end', 'contents', 'resources'],
+    required = ['code', 'subcode', 'promo', 'start', 'end',
+                'lateok', 'contents', 'resources'],
 )
 
 GSCHEMA = dict(
@@ -211,10 +213,11 @@ FORM = r'''
     'last submissions from previous questions (from last to first)',
   ]))
 
-F_REQUIRED  = '<div class="alert alert-light">Expected files: %s</div>'
-NO_SUBMIT   = '<div class="alert alert-danger">Upload form is only available when connected</div>'
-LATE_SUBMIT = '<div class="alert alert-danger">Submissions are now closed</div>'
-LAST_SUBMIT = '<div class="alert alert-info">Last submission: %s</div>'
+F_REQUIRED     = '<div class="alert alert-light">Expected files: %s</div>'
+NO_SUBMIT      = '<div class="alert alert-danger">Upload form is only available when connected</div>'
+LATE_SUBMIT    = '<div class="alert alert-danger">Submissions are now closed</div>'
+LATE_OK_SUBMIT = '<div class="alert alert-danger">Your submission will be flaged as late</div>'
+LAST_SUBMIT    = '<div class="alert alert-info">Last submission: %s</div>'
 
 # --------------------------------------------------------------------
 def questions_of_contents(contents):
@@ -619,8 +622,8 @@ def uploads_by_users(request, code, subcode, promo):
 
     with db.connection.cursor() as cursor:
         cursor.execute(SQL_HANDINS, [the.pk])
-        nt  = namedtuple('Handin', [c[0] for c in cursor.description])
-        hdn = [nt(*x) for x in cursor.fetchall()]
+        nt  = namedtuple('Handin', [c[0] for c in cursor.description] + ['late'])
+        hdn = [nt(*x + (False,)) for x in cursor.fetchall()]
 
         cursor.execute(SQL_GROUPS, [gname + ':%'])
         nt  = namedtuple('Group', [c[0] for c in cursor.description])
@@ -637,6 +640,9 @@ def uploads_by_users(request, code, subcode, promo):
     uploads = dict()
 
     for x in hdn:
+        if the.end is not None and x.date.date() > the.end:
+            x = x._replace(late = True)
+
         if x.login not in users:
             users[x.login] = (x.login, x.fullname)
 
@@ -1155,10 +1161,11 @@ def handin(request, code, subcode, promo, index):
                 ('upload:assignment', args=(code, subcode, promo))
     url   = url + '#submit-%d' % (index,)
 
-    if the.end is not None and dt.datetime.now().date() >= the.end:
-        messages.error(request,
-            'The assignment has been closed')
-        return dutils.redirect(url)
+    if the.end is not None and not the.lateok:
+        if dt.datetime.now().date() >= the.end:
+            messages.error(request,
+                'The assignment has been closed')
+            return dutils.redirect(url)
 
     if not files:
         messages.error(request,
@@ -1314,10 +1321,16 @@ class Assignment(views.generic.TemplateView):
             header = pandoc_gen(the.contents, 'header')
             cache.set(self.get_cache_key(code, subcode, promo, 'header'), header)
 
+        now  = dt.datetime.now()
+        late = the.end is not None and now.date() > the.end
+
         def upload_match(handins):
             def doit(match):
                 index = int(match.group(1))
                 data  = '<div id="submit-%d"></div>' % (index,)
+
+                if late:
+                    data += LATE_OK_SUBMIT
 
                 if index in handins:
                     date  = handins[index]['date']
@@ -1336,15 +1349,15 @@ class Assignment(views.generic.TemplateView):
 
             return doit
 
-        def upload_match_nc(match):
-            return NO_SUBMIT
-
         def upload_match_late(match):
             return LATE_SUBMIT
 
+        def upload_match_nc(match):
+            return NO_SUBMIT
+
         handins = None
         if self.request.user.is_authenticated:
-            if the.end is not None and dt.datetime.now().date() >= the.end:
+            if late and not the.lateok:
                 text = re.sub(UPRE, upload_match_late, text)
             else:
                 handins = dict()
@@ -1416,6 +1429,7 @@ class Assignment(views.generic.TemplateView):
         key = dict(code=code, subcode=subcode, promo=promo)
         dfl = dict(start      = jso['start'],
                    end        = jso['end'],
+                   lateok     = jso['lateok'],
                    contents   = jso['contents'],
                    tests      = [],
                    properties = dict(required = jso.get('required', dict()),
