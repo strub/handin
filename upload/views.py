@@ -927,6 +927,10 @@ def _stream_handins(fname, pattern, handins):
                                     promo   = handin.assignment.promo,
                                     index   = handin.index)
                     dirname  = '%s/%s' % (fname, pattern % data)
+
+                    if handin.late:
+                        dirname = '%s/LATE' % (dirname,)
+
                     filename = '%s/%s' % (dirname, resource.name)
 
                     create_dirs(dirname, seen)
