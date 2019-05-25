@@ -93,7 +93,7 @@ class UnseekableStream(io.RawIOBase):
 
 # --------------------------------------------------------------------
 REFRESH  = 60
-MAXFILES = 10
+MAXFILES = 20
 MAXSIZE  = 256 * 1024
 MINDELTA = 10
 BOOL     = ('1', 'on')
@@ -408,21 +408,23 @@ def _defer_check_internal(uuid):
                         pass
 
                 if os.listdir(artdir):
-                    fd, tmpzip = tempfile.mkstemp()
-                    _noexn(lambda : fd.close())
-                    try:
-                        shutil.make_archive(tmpzip, 'zip', artdir)
-                        with open(tmpzip + '.zip', 'rb') as zipstream:
-                            hdn.artifact.save('artifacts.zip', File(zipstream))
-                    finally:
-                        _noexn(lambda : os.unlink(tmpzip))
-                        _noexn(lambda : os.unlink(tmpzip + '.zip'))
+                    with tempfile.NamedTemporaryFile() as tmpzip:
+                        with zipfile.ZipFile(tmpzip.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+                            for root, _, filenames in os.walk(artdir):
+                                for name in filenames:
+                                    name = os.path.join(root, name)
+                                    arcn = os.path.relpath(name, artdir)
+                                    zf.write(name, arcn)
+
+                        with open(tmpzip.name, 'rb') as zf:
+                            hdn.artifact.save('artifacts.zip', File(zf))
 
     except Exception as e:
-        log += [repr(e)]
+        import traceback
+        log += [traceback.format_exc()]
         status = 'errored'
 
-    hdn.log    = '\n'.join(log) + '\n'
+    hdn.log    = ('\n'.join(log) + '\n').replace('\x00', '\\x00')
     hdn.status = status
     hdn.save()
 
@@ -1457,7 +1459,7 @@ def resource(request, code, subcode, promo, name):
 @dhttp.require_GET
 def recheck(request, code, subcode, promo):
     force = request.GET.get('force', '').lower() in BOOL
-    flt   = Q() if force else Q(status = '')
+    flt   = Q() if force else Q(status = '') | Q(status = 'errored')
 
     handins = models.HandIn.objects \
                     .select_related('assignment', 'user') \

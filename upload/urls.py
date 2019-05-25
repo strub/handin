@@ -61,7 +61,7 @@ urlpatterns = [
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/<int:index>/',
              views.download_login_index, name='download_login_index'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<uuid:uuid>',
+    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<login>/<int:index>/',
              views.artifact_login_index, name='artifact_login_index'),
 
     path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>',
