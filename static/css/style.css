@@ -216,15 +216,22 @@ img {
   vertical-align: middle;
 }
 
-figure {
+figure, .figure {
   display: block;
   text-align: center;
   margin: 1em 0;
+  border-top: 1px solid #ccc;
+  border-bottom: 1px solid #ccc;
 }
 
-figure img {
+.figure p {
+  text-align: center;
+}
+
+figure img, .figure img {
   border: none;
   margin: 0 auto;
+  max-width: 60% !important;
 }
 
 figcaption {

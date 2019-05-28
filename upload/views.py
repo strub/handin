@@ -65,6 +65,7 @@ def pandoc_gen(value, template):
         to         = 'html5+smart+markdown_in_html_blocks',
         format     = 'md',
         extra_args = [
+            '--filter', 'pandoc-codeblock-include',
             '--base-header-level=2',
             '--mathjax', '--standalone',
             '--toc', '--toc-depth=4',
@@ -640,7 +641,7 @@ def uploads_by_users(request, code, subcode, promo):
     uploads = dict()
 
     for x in hdn:
-        if the.end is not None and x.date.date() > the.end:
+        if the.end is not None and x.date.replace(tzinfo=None).date() >= the.end:
             x = x._replace(late = True)
 
         if x.login not in users:

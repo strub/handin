@@ -146,7 +146,7 @@ class HandIn(models.Model):
     def late(self):
         if self.assignment.end is None:
             return False
-        return self.date.date() > self.assignment.end
+        return self.date.replace(tzinfo=None).date() >= self.assignment.end
 
 # --------------------------------------------------------------------
 def handin_upload(instance, filename):
