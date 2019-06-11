@@ -3,7 +3,7 @@ import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import codecs, chardet, shutil, uuid as muuid, docker, math
 import multiprocessing as mp, psutil
 import itertools as it, humanfriendly as hf
-from   collections import namedtuple
+from   collections import namedtuple, OrderedDict as odict
 
 from   django.conf import settings
 from   django.core.exceptions import PermissionDenied
@@ -94,14 +94,14 @@ class UnseekableStream(io.RawIOBase):
 
 # --------------------------------------------------------------------
 REFRESH  = 60
-MAXFILES = 20
+MAXFILES = 30
 MAXSIZE  = 256 * 1024
 MINDELTA = 10
 BOOL     = ('1', 'on')
 
 # --------------------------------------------------------------------
 REIDENT = r'^[a-zA-Z0-9]+$'
-UPRE    = r'<\!--\s*UPLOAD:(\d+)\s*-->'
+UPRE    = r'<\!--\s*UPLOAD:(\d+)(?::([a-zA-Z0-9-_.]+))?\s*-->'
 
 RSCHEMA = dict(
     type  = 'array',
@@ -222,8 +222,10 @@ LAST_SUBMIT    = '<div class="alert alert-info">Last submission: %s</div>'
 
 # --------------------------------------------------------------------
 def questions_of_contents(contents):
-    qst = re.findall(r'<\!--\s*UPLOAD:(\d+)\s*-->', contents)
-    return sorted([int(x) for x in qst])
+    qst = re.findall(UPRE, contents)
+    qst = [(int(x[0]), x[1]) for x in qst]
+    qst = sorted(qst, key = lambda x : x[0])
+    return odict(qst)
 
 # --------------------------------------------------------------------
 def can_access_assignment(user, the):
@@ -233,7 +235,10 @@ def can_access_assignment(user, the):
 
 # --------------------------------------------------------------------
 def get_assignment(request, code, subcode, promo):
-    the = models.Assignment.objects.get(code=code, subcode=subcode, promo=promo)
+    try:
+        the = models.Assignment.objects.get(code=code, subcode=subcode, promo=promo)
+    except models.Assignment.DoesNotExist:
+        the = None
     if the is None: raise http.Http404
     if not can_access_assignment(request.user, the):
         if not request.user.is_authenticated:

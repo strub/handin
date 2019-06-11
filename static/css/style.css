@@ -230,7 +230,6 @@ figure, .figure {
 
 figure img, .figure img {
   border: none;
-  margin: 0 auto;
   max-width: 60% !important;
 }
 

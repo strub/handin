@@ -49,6 +49,7 @@ number of students that submitted at least once in that assigment. (=
         <span class="fa fa-cloud-download-alt"><span>
       </a> &nbsp;
       Q.{{ idx }}
+      {% if qst[idx] %}({{ qst[idx] }}){% endif %}
     </td>
     <td style="vertical-align: middle;">
     <div class="progress progress-thin">

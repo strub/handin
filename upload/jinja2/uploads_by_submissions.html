@@ -78,7 +78,10 @@
         <span class="fa fa-arrow-circle-right"></span>
       </a>
     </td>
-    <td>{{ upload.index }}</td>
+    <td>
+      {{ upload.index }}
+      {% if qst[upload.index] %}({{ qst[upload.index] }}){% endif %}
+    </td>
     <td>
       {{ macros.upload_status(upload) }}
       &nbsp;
