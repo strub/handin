@@ -10,7 +10,7 @@ RUN \
 	apt-get -y clean
 
 RUN \
-	apt-get -y install vim openjdk-8-jdk-headless python3 python3-venv && \
+	apt-get -y install vim openjdk-8-jdk-headless openjfx python3 python3-venv && \
 	apt-get -y clean
 
 RUN python3 -m venv /opt/handin && /opt/handin/bin/pip3 install chardet
