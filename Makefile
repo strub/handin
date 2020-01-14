@@ -48,7 +48,7 @@ release-norestart: __force__
 	  --perms --no-group --chmod=ug=rwX,o=rX \
 	  --exclude='*.pyc' --exclude='__pycache__' \
 	  --exclude='migrations/*.py' \
-	  --exclude='media/' \
+	  --exclude='media/' --exclude=upload/autocorrect/scripts/ \
 	  --exclude='*.sqlite3' --exclude='.git*' \
 	  . $(HOST):/opt/handin/handin
 

@@ -24,11 +24,11 @@
 <div class="alert alert-warning">
   This assignment has been closed on {{ the.end.strftime('%B %d, %Y') }}.
 </div>
+{% if the.lateok %}
 <div class="alert alert-warning">
-  {% if the.lateok %}
   You can still upload files. However, such late submissions will be flagged as such.
-  {% endif%}
 </div>
+{% endif%}
 {% endif %}
 {% endif %}
 

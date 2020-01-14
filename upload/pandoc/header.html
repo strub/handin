@@ -24,6 +24,23 @@ $for(css)$
 <link rel="stylesheet" href="$css$" />
 $endfor$
 $if(math)$
+  <script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    "HTML-CSS": {
+      availableFonts: ['STIX-web']
+    },
+    TeX: {
+      Augment: {
+        Definitions: {
+          delimiter: {
+            '\\llbracket': '27E6',
+            '\\rrbracket': '27E7',
+          }
+        }
+      }
+    }
+  });
+  </script>
   $math$
 $endif$
 <!--[if lt IE 9]>

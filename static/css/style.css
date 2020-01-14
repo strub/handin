@@ -134,7 +134,6 @@ hr {
 pre, code, kbd, samp {
   color: #000;
   font-family: monospace, monospace;
-  _font-family: 'courier new', monospace;
   font-size: 0.98em;
 }
 
@@ -219,7 +218,8 @@ img {
 figure, .figure {
   display: block;
   text-align: center;
-  margin: 1em 0;
+  margin: 0.5em 0;
+  padding: 1em 0;
   border-top: 1px solid #ccc;
   border-bottom: 1px solid #ccc;
 }
@@ -527,6 +527,10 @@ div[id^="submit-"] {
   margin-top: -75px;
 }
 
+ol.example {
+  border-left: 2px solid #ddd;
+}
+
 /* Alerts */
 #content .alert {
   padding: 0.25rem 1.25rem;
@@ -535,6 +539,7 @@ div[id^="submit-"] {
 #top-alerts {
   position: fixed;
   top: 80px;
+  right: 0px;
   margin: 0px 20px;
   z-index: 1500;
 }
@@ -551,6 +556,10 @@ div[id^="submit-"] {
 /* Code */
 pre > code {
   font-size: 85%;
+}
+
+div.sourceCode {
+  padding: 10px;
 }
 
 .hljs-ln-numbers {

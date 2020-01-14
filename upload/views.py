@@ -62,13 +62,13 @@ def pandoc_gen(value, template):
     template = os.path.join(ROOT, 'pandoc', template + '.html')
 
     args = dict(
-        to         = 'html5+smart+markdown_in_html_blocks',
-        format     = 'md',
+        to         = 'html5+smart+raw_tex',
+        format     = 'markdown',
         extra_args = [
             '--filter', 'pandoc-codeblock-include',
-            '--base-header-level=2',
-            '--mathjax', '--standalone',
-            '--toc', '--toc-depth=4',
+            '--shift-heading-level-by=2',
+            '--mathjax=https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
+            '--standalone', '--toc', '--toc-depth=4',
             '--template=%s' % (template,),
         ]
     )
@@ -294,24 +294,10 @@ def _defer_check_internal(uuid):
         hdn.status = 'failure'; hdn.save()
         return
 
-    entry = 'Test_%s_%d.java' % (the.subcode, hdn.index)
-
-    test = models.Resource.objects \
-                 .filter(namespace  = 'tests/files',
-                         assignment = the,
-                         name       = entry) \
-                 .first()
-
-    if test is None:
-        return
-
     extra = models.Resource.objects \
                   .filter(namespace  = 'tests/extra',
                           assignment = the) \
                   .all()[:]
-
-    def do_recode(filename):
-        return os.path.splitext(filename)[1].lower() == '.java'
 
     try:
         log = []
@@ -333,22 +319,8 @@ def _defer_check_internal(uuid):
                         raise ValueError('insecure file-map')
 
                     os.makedirs(os.path.dirname(outname), exist_ok = True)
+                    shutil.copy(filename.contents.path, outname)
 
-                    if do_recode(filename.contents.path):
-                        coddet = chardet.universaldetector.UniversalDetector()
-                        with filename.contents.open('br') as stream:
-                            contents = stream.read()
-                        coddet.reset(); coddet.feed(contents); coddet.close()
-                        encoding = coddet.result['encoding'] or 'ascii'
-                        contents = codecs.decode(contents, encoding)
-                        with open(outname, 'wb') as stream:
-                            stream.write(codecs.encode(contents, 'utf-8'))
-                    else:
-                        shutil.copy(filename.contents.path, outname)
-
-                shutil.copy(test.contents.path,
-                            os.path.join(srcdir, test.name))
-    
                 for filename in extra:
                     shutil.copy(filename.contents.path,
                                 os.path.join(tstdir, filename.name))
@@ -372,8 +344,6 @@ def _defer_check_internal(uuid):
                             dict(bind = '/opt/handin/user/test', mode = 'rw'),
                         os.path.realpath(artdir): \
                             dict(bind = '/opt/handin/user/artifacts', mode = 'rw'),
-                        os.path.join(ACDIR, 'libsupport'): \
-                            dict(bind = '/opt/handin/user/lib', mode = 'ro'),
                         os.path.join(ACDIR, 'scripts'): \
                             dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
                     }
@@ -382,15 +352,14 @@ def _defer_check_internal(uuid):
                 command = [
                     'timeout', '--preserve-status', '--signal=KILL', '60',
                     '/opt/handin/bin/python3',
-                    '/opt/handin/user/scripts/achecker.py',
+                    '/opt/handin/user/scripts/achecker-%s-%d.py' % (hdn.assignment.code, hdn.assignment.promo),
                     '/opt/handin/user',
-                    os.path.splitext(entry)[0],
                 ]
     
                 log += ['running docker...']
     
                 container = dclient.containers.run \
-                    ('handin:latest', command, **container)
+                    ('handin:%s-%d' % (hdn.assignment.code, hdn.assignment.promo), command, **container)
     
                 try:
                     for i, line in enumerate(container.logs(stream = True)):
@@ -404,7 +373,7 @@ def _defer_check_internal(uuid):
                     if 'Error' in status and status['Error'] is not None:
                         status = 'errored'
                     else:
-                        if status['StatusCode'] == 124:
+                        if status['StatusCode'] == (128 + 9):
                             log += ['...timeout']
                         status = 'success' if status['StatusCode'] == 0 else 'failure'
         
@@ -449,12 +418,16 @@ def _defer_check_wrapper(uuid):
         raise
 
 # --------------------------------------------------------------------
-def _defer_check(handin, update = True):
+def _defer_check(handin, update = True, priority = 0):
     with db.transaction.atomic():
-        _defer_check_wrapper(str(handin.uuid))
+        _defer_check_wrapper(str(handin.uuid), priority = priority)
         if update:
             handin.log, handin.status = '', ''
             handin.save()
+
+# --------------------------------------------------------------------
+def _defer_recheck(handin, update = True):
+    return _defer_check(handin, update = update, priority = -5)
 
 # --------------------------------------------------------------------
 def load(request):
@@ -1496,7 +1469,7 @@ def recheck(request, code, subcode, promo):
 
     with db.transaction.atomic():
         for handin in handins:
-            _defer_check(handin)
+            _defer_recheck(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1530,7 +1503,7 @@ def recheck_user(request, code, subcode, promo, login):
             if not force and handin.status != '':
                 continue
     
-            count += 1; _defer_check(handin)
+            count += 1; _defer_recheck(handin)
 
     return http.HttpResponse(str(count), content_type='text/plain')
 
@@ -1566,7 +1539,7 @@ def recheck_index(request, code, subcode, promo, index):
             if not force and handin.status != '':
                 continue
 
-            count += 1; _defer_check(handin)
+            count += 1; _defer_recheck(handin)
 
     return http.HttpResponse(str(count), content_type='text/plain')
 
@@ -1596,7 +1569,7 @@ def recheck_user_index(request, code, subcode, promo, login, index):
 
     with db.transaction.atomic():
         for handin in handins:
-            _defer_check(handin)
+            _defer_recheck(handin)
 
     return http.HttpResponse(str(len(handins)), content_type='text/plain')
 
@@ -1608,7 +1581,7 @@ def recheck_uuid(request, uuid):
     handin = models.HandIn.objects.get(pk = uuid)
 
     if handin is not None:
-        _defer_check(handin)
+        _defer_recheck(handin)
 
     return http.HttpResponse('1' if handin else '0', content_type='text/plain')
 
