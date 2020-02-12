@@ -268,12 +268,12 @@ table td {
 
 @media only screen and (min-width: 480px) {
   body {
-    font-size: 14px;
+    font-size: 12px;
   }
 }
 @media only screen and (min-width: 768px) {
   body {
-    font-size: 16px;
+    font-size: 14px;
   }
 }
 @media print {
@@ -528,7 +528,7 @@ div[id^="submit-"] {
 }
 
 ol.example {
-  border-left: 2px solid #ddd;
+  border-left: 2px dashed #999;
 }
 
 /* Alerts */
@@ -579,3 +579,20 @@ div.sourceCode {
 .hljs-ln-code {
   padding-left: 10px;
 }
+
+/* qclasses */
+div.mandatory {
+  border-left: 3px solid green;
+  padding-left: 10px;
+}
+
+div.optional {
+  border-left: 3px solid orange;
+  padding-left: 10px;
+}
+
+div.outtopic {
+  border-left: 3px solid red;
+  padding-left: 10px;
+}
+

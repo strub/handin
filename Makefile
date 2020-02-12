@@ -2,7 +2,7 @@
 
 # --------------------------------------------------------------------
 .PHONY: __force__ default serve release release-norestart cleardb
-.PHONY: migrations reset-migrations backup run-tasks
+.PHONY: flush migrations reset-migrations backup run-tasks
 
 HOST     := x.strub.nu
 SETTINGS ?= handin.settings.development
@@ -22,6 +22,10 @@ cleardb: __force__
 	find . -path '*/migrations/*.py' -not -name '__init__.py' -delete
 	find . -path '*/migrations/__pycache__/*.pyc'  -delete
 	rm -rf db.sqlite3 media
+
+# --------------------------------------------------------------------
+flush:
+	$(MANAGE) flush
 
 # --------------------------------------------------------------------
 migrations:
