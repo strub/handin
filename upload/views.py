@@ -350,7 +350,7 @@ def _defer_check_internal(uuid):
                 )
     
                 command = [
-                    'timeout', '--preserve-status', '--signal=KILL', '60',
+                    'timeout', '--preserve-status', '--signal=KILL', '180',
                     '/opt/handin/bin/python3',
                     '/opt/handin/user/scripts/achecker-%s-%d.py' % (hdn.assignment.code, hdn.assignment.promo),
                     '/opt/handin/user',
@@ -1562,7 +1562,7 @@ def recheck_user_index(request, code, subcode, promo, login, index):
                           .all()
 
     if not deep:
-        handins = [handins[0]]
+        handins = handins[:1]
 
     if not force:
         handins = [x for x in handins if x.status == '']

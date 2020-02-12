@@ -8,7 +8,7 @@ DOTENV_FILE = '/etc/handin/env'
 env_config  = decouple.Config(decouple.RepositoryEnv(DOTENV_FILE))
 
 # --------------------------------------------------------------------
-DEBUG = True
+DEBUG = False
 
 SECRET_KEY = env_config.get('SECRET_KEY')
 
