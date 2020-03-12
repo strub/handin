@@ -45,7 +45,7 @@ number of students that submitted at least once in that assigment. (=
 {% set u  = [users, 1] | max %}
   <tr>
     <td class="text-nowrap">
-      <a target="_blank" href="{{ url('upload:download_index', the.code, the.subcode, the.promo, q) }}">
+      <a target="_blank" href="{{ url('upload:download_index', the.code, the.subcode, the.promo, idx) }}">
         <span class="fa fa-cloud-download-alt"><span>
       </a> &nbsp;
       Q.{{ idx }}
