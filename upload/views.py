@@ -275,7 +275,7 @@ def _build_nav(user, the, back = True):
 def _defer_check_internal(uuid):
     hdn = models.HandIn.objects \
                        .select_related('user', 'assignment') \
-                       .defer('assignment__contents') \
+                       .defer('assignment__contents', 'log', 'xstatus') \
                        .get(pk = uuid)
     the = hdn.assignment
     qst = questions_of_contents(the.contents)
@@ -300,13 +300,14 @@ def _defer_check_internal(uuid):
                   .all()[:]
 
     try:
-        log = []
+        log, xstatus = [], ''
 
         with tempfile.TemporaryDirectory() as srcdir:
             jaildir = os.path.realpath(srcdir)
 
             with tempfile.TemporaryDirectory() as tstdir, \
-                 tempfile.TemporaryDirectory() as artdir:
+                 tempfile.TemporaryDirectory() as artdir, \
+                 tempfile.TemporaryDirectory() as outdir:
 
                 log += ['copying files...']
     
@@ -344,6 +345,8 @@ def _defer_check_internal(uuid):
                             dict(bind = '/opt/handin/user/test', mode = 'rw'),
                         os.path.realpath(artdir): \
                             dict(bind = '/opt/handin/user/artifacts', mode = 'rw'),
+                        os.path.realpath(outdir): \
+                            dict(bind = '/opt/handin/user/output', mode = 'rw'),
                         os.path.join(ACDIR, 'scripts'): \
                             dict(bind = '/opt/handin/user/scripts', mode = 'ro'),
                     }
@@ -397,13 +400,21 @@ def _defer_check_internal(uuid):
                         with open(tmpzip.name, 'rb') as zf:
                             hdn.artifact.save('artifacts.zip', File(zf))
 
+                outfile = os.path.join(outdir, 'result.json')
+                if os.path.isfile(outfile):
+                    # FIXME: check for file size first
+                    with open(outfile, 'r') as resultjson:
+                        xstatus = resultjson.read()
+
     except Exception as e:
         import traceback
-        log += [traceback.format_exc()]
-        status = 'errored'
+        log     += [traceback.format_exc()]
+        status   = 'errored'
+        xstatus  = ''
 
-    hdn.log    = ('\n'.join(log) + '\n').replace('\x00', '\\x00')
-    hdn.status = status
+    hdn.log     = ('\n'.join(log) + '\n').replace('\x00', '\\x00')
+    hdn.status  = status
+    hdn.xstatus = xstatus.replace('\x00', '\\x00')
     hdn.save()
 
 # --------------------------------------------------------------------
@@ -652,7 +663,7 @@ def uploads_by_questions(request, code, subcode, promo):
         .select_related('user') \
         .filter(assignment = the, user__cls = 'Etudiants') \
         .order_by('-date') \
-        .defer('log', 'artifact') \
+        .defer('log', 'xstatus', 'artifact') \
         .all()
 
     users   = set()
@@ -693,7 +704,7 @@ def uploads_by_submissions(request, code, subcode, promo):
                            .select_related('user') \
                            .filter(assignment = the) \
                            .order_by('-date') \
-                           .defer('log', 'artifact') \
+                           .defer('log', 'xstatus', 'artifact') \
                            .all()
     uploads = paginator.Paginator(uploads, 100).get_page(request.GET.get('page'))
 
@@ -936,7 +947,7 @@ def _fetch_artifact(request, code, subcode, promo, flt):
         .select_related('user', 'assignment') \
         .filter(assignment = the) \
         .filter(flt) \
-        .defer('log', 'artifact', 'assignment__contents',
+        .defer('log', 'xstatus', 'artifact', 'assignment__contents',
                'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .first()
@@ -1057,7 +1068,7 @@ def download_all_code_promo(request, code, promo):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment__code = code, assignment__promo = promo) \
-        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'xstatus', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('assignment__subcode', '-date', 'user__login', 'index') \
         .all()
     handins = list(distinct_on(handins, lambda x : (x.user.login, x.index)))
@@ -1075,7 +1086,7 @@ def download_login(request, code, subcode, promo, login):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, user__login = login) \
-        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'xstatus', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
@@ -1093,7 +1104,7 @@ def download_index(request, code, subcode, promo, index):
     handins = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, index = index) \
-        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'xstatus', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .all()
     handins = distinct_on(handins, lambda x : (x.user.login, x.index))
@@ -1112,7 +1123,7 @@ def download_login_index(request, code, subcode, promo, login, index):
     handin = models.HandIn.objects \
         .select_related('user', 'assignment') \
         .filter(assignment = the, index = index, user__login = login) \
-        .defer('log', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
+        .defer('log', 'xstatus', 'artifact', 'assignment__contents', 'assignment__properties', 'assignment__tests') \
         .order_by('-date', 'user__login', 'index') \
         .first()
 
@@ -1492,7 +1503,7 @@ def recheck_user(request, code, subcode, promo, login):
                             assignment__promo = promo) \
                     .filter(user__login = login) \
                     .order_by('-date') \
-                    .defer('log', 'artifact') \
+                    .defer('log', 'xstatus', 'artifact') \
                     .all():
 
             if not deep:
@@ -1527,7 +1538,7 @@ def recheck_index(request, code, subcode, promo, index):
                             assignment__promo = promo) \
                     .filter(index = index) \
                     .order_by('-date') \
-                    .defer('log', 'artifact') \
+                    .defer('log', 'xstatus', 'artifact') \
                     .all():
     
             if not deep:
@@ -1558,7 +1569,7 @@ def recheck_user_index(request, code, subcode, promo, login, index):
                                   assignment__promo = promo) \
                           .filter(user__login = login, index = index) \
                           .order_by('-date') \
-                          .defer('log', 'artifact') \
+                          .defer('log', 'xstatus', 'artifact') \
                           .all()
 
     if not deep:

@@ -139,6 +139,7 @@ class HandIn(models.Model):
     index      = models.IntegerField()
     date       = models.DateTimeField(auto_now_add = True)
     status     = models.CharField(max_length = 16, blank = True)
+    xstatus    = models.TextField(blank = True)
     log        = models.TextField(blank = True)
     artifact   = models.FileField(max_length = 1024, upload_to = handin_artifact, blank = True)
 
