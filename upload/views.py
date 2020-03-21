@@ -704,7 +704,7 @@ def uploads_by_submissions(request, code, subcode, promo):
     the     = get_assignment(request, code, subcode, promo)
     qst     = questions_of_contents(the.contents)
     uploads = models.HandIn.objects \
-                           .select_related('user') \
+                           .select_related('user', 'assignment') \
                            .filter(assignment = the) \
                            .order_by('-date') \
                            .defer('log', 'xstatus', 'artifact') \
