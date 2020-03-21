@@ -95,7 +95,7 @@ class UnseekableStream(io.RawIOBase):
 # --------------------------------------------------------------------
 REFRESH  = 60
 MAXFILES = 30
-MAXSIZE  = 256 * 1024
+MAXSIZE  = 10 * 1024 * 1024
 MINDELTA = 10
 BOOL     = ('1', 'on')
 
@@ -337,7 +337,10 @@ def _defer_check_internal(uuid):
                     stdout           = True ,
                     stderr           = True ,
                     network_disabled = True ,
-                    mem_limit        = 128 * 1024 * 1024,
+                    log_config       = {
+                        'max-size': '10m',
+                    }
+                    mem_limit        = 512 * 1024 * 1024,
                     volumes = {
                         os.path.realpath(srcdir): \
                             dict(bind = '/opt/handin/user/src', mode = 'rw'),
