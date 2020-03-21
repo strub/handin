@@ -339,7 +339,7 @@ def _defer_check_internal(uuid):
                     network_disabled = True ,
                     log_config       = {
                         'max-size': '10m',
-                    }
+                    },
                     mem_limit        = 512 * 1024 * 1024,
                     volumes = {
                         os.path.realpath(srcdir): \
