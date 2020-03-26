@@ -160,13 +160,13 @@ class HandIn(models.Model):
 
         aout = []
         for testv in self.xstatus:
-            failures, success = [], []
             if testv['result'] is None:
                 aout.append((testv['name'], 'skipped'))
             else:
-                for test in testv['result']:
-                    (success if test['status'] == 'success' else failures).append(test)
-                aout.append((testv['name'], 'failure' if failures else 'success'))
+                status = testv['result']['status']
+                if status not in ('success', 'failure', 'timeout'):
+                    status = 'failure'
+                aout.append((testv['name'], status))
         return aout
 
     def failings(self):
@@ -174,12 +174,9 @@ class HandIn(models.Model):
             return []
         aout = []
         for testv in self.xstatus:
-            if testv['result'] in ('success', None):
+            if testv['result'] is None or testv['result']['status'] == 'success':
                 continue
-            for test in testv['result']:
-                if test['status'] != 'success':
-                    aout.append(({ x: testv[x] for x in ('name', 'timeout') }, test))
-                    break
+            aout.append(({ x: testv[x] for x in ('name', 'timeout') }, testv['result']))
         return aout
 
 # --------------------------------------------------------------------

@@ -30,7 +30,7 @@ fa {{ values.get(code, 'fa-question-circle') }}
 
 {% macro html_xstatus(xinfos) -%}
 {% for test in xinfos %}
-<span class="{{ status(test.1) }}" data-toggle="tooltip" data-placement="top" title="{{ test.0 }}"></span>
+<span class="{{ status(test.1) }}" data-toggle="tooltip" data-placement="top" title="{{ test.0 }} - {{ test.1 }}"></span>
 {% endfor %}
 {%- endmacro %}
 
@@ -106,6 +106,10 @@ fa {{ values.get(code, 'fa-question-circle') }}
         <div class="card-body">
         <p><strong>Input</strong></p>
         <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
+        {% if 'expected-output' in failing.1['xinfos'] %}
+        <p><strong>Expected output</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['expected-output'] }}</code></pre>
+        {% endif %}
         {% if failing.1['status'] == 'timeout' %}
         <p><strong>Timeout</strong></p>
         <pre class="code"><code>{{ failing.0['timeout'] }}</code></pre>
