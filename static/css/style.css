@@ -234,7 +234,7 @@ figure, .figure {
 
 figure img, .figure img {
   border: none;
-  max-width: 60% !important;
+  max-width: 80% !important;
 }
 
 figcaption {
@@ -459,6 +459,26 @@ pre.console {
   background-color: black;
 }
 
+pre.code {
+  color: black;
+  background-color: #eee;
+  border: 1px solid #ccc;
+  padding: 5px 10px;
+  border-radius: 5px;
+  overflow: auto;
+  word-wrap: normal;
+  white-space: pre;
+}
+
+pre.pre-scrollable {
+  max-height: 340px;
+  overflow-y: scroll;
+}
+
+:not(pre) > code {
+  color: black;
+}
+
 /* Uploads table */
 table.uploads tbody td {
   padding: 4px 5px !important;
@@ -483,30 +503,38 @@ table.uploads .olinks:hover {
 }
 
 /* Accordion */
-#uploads .card {
+.thacc .card {
   margin-bottom: 5px;
 }
 
-#uploads .card-header {
+.thacc .card-header {
   cursor: pointer;
   padding: 2px 5px;
 }
 
-#uploads .card-header h4 {
+.thacc .card-header h4 {
   margin: 0px;
 }
 
-#uploads .card-collapse {
+.thacc .card-collapse {
   margin-right: 5px;
 }
 
-#uploads .card-body {
+.thacc .card-body {
   overflow-y: scroll;
+}
+
+.thacc [data-toggle="collapse"] .fa:before {   
+  content: "\f13a";
+}
+
+.thacc [data-toggle="collapse"].collapsed .fa:before {
+  content: "\f139";
 }
 
 /* General layout */
 #content {
-  max-width: 940px;
+  max-width: 50rem;
   margin: auto;
 }
 
@@ -564,6 +592,8 @@ pre > code {
 
 div.sourceCode {
   padding: 10px;
+  border: 1px solid #aaa;
+  border-radius: 5px;
 }
 
 .hljs-ln-numbers {

@@ -64,7 +64,7 @@
   <tr>
     <th>Date</th>
     <th>Student</th>
-    <th>Question</th>
+    <th>Problem</th>
     <th>Status</th>
   </tr>
 </thead>
@@ -82,9 +82,10 @@
       {{ upload.index }}
       {% if qst[upload.index] %}({{ qst[upload.index] }}){% endif %}
     </td>
-    <td>
+    <td class="text-nowrap">
       {{ macros.upload_status(upload) }}
-      &nbsp;
+    </td>
+    <td class="text-nowrap">
       <a target="_blank" href="{{ url('upload:download_uuid', the.code, the.subcode, the.promo, upload.uuid) }}">
         <i class="fa fa-download"></i>
       </a>

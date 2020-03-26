@@ -1,6 +1,6 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
-import codecs, chardet, shutil, uuid as muuid, docker, math
+import json, shutil, uuid as muuid, docker, math
 import multiprocessing as mp, psutil
 import itertools as it, humanfriendly as hf
 from   collections import namedtuple, OrderedDict as odict
@@ -282,6 +282,7 @@ def _defer_check_internal(uuid):
 
     hdn.artifact.name = ''
     hdn.status        = ''
+    hdn.xstatus       = None
     hdn.save()
 
     if hdn.index not in qst or hdn.index not in the.tests:
@@ -337,10 +338,12 @@ def _defer_check_internal(uuid):
                     stdout           = True ,
                     stderr           = True ,
                     network_disabled = True ,
-                    log_config       = {
-                        'max-size': '10m',
-                    },
                     mem_limit        = 512 * 1024 * 1024,
+                    log_config       = docker.types.LogConfig(
+                        type=docker.types.LogConfig.types.JSON, config = {
+                            'max-size': '10m',
+                        }
+                    ),
                     volumes = {
                         os.path.realpath(srcdir): \
                             dict(bind = '/opt/handin/user/src', mode = 'rw'),
@@ -407,7 +410,7 @@ def _defer_check_internal(uuid):
                 if os.path.isfile(outfile):
                     # FIXME: check for file size first
                     with open(outfile, 'r') as resultjson:
-                        xstatus = resultjson.read()
+                        xstatus = json.loads(resultjson.read())
 
     except Exception as e:
         import traceback
@@ -417,7 +420,7 @@ def _defer_check_internal(uuid):
 
     hdn.log     = ('\n'.join(log) + '\n').replace('\x00', '\\x00')
     hdn.status  = status
-    hdn.xstatus = xstatus.replace('\x00', '\\x00')
+    hdn.xstatus = xstatus
     hdn.save()
 
 # --------------------------------------------------------------------
@@ -436,7 +439,7 @@ def _defer_check(handin, update = True, priority = 0):
     with db.transaction.atomic():
         _defer_check_wrapper(str(handin.uuid), priority = priority)
         if update:
-            handin.log, handin.status = '', ''
+            handin.log, handin.status, handin.xstatus = '', '', None
             handin.save()
 
 # --------------------------------------------------------------------
@@ -595,7 +598,7 @@ SQL_HANDINS = r"""
 select u.login as login,
        (u.firstname || ' ' || u.lastname) as fullname,
        h."index" as idx,
-       h.status as status, h.date as date
+       h.status as status, h.xinfos as xinfos, h.date as date
   from       upload_handin as h
   inner join handin_user as u
              on h.user_id = u.login
@@ -617,6 +620,9 @@ def uploads_by_users(request, code, subcode, promo):
         cursor.execute(SQL_HANDINS, [the.pk])
         nt  = namedtuple('Handin', [c[0] for c in cursor.description] + ['late'])
         hdn = [nt(*x + (False,)) for x in cursor.fetchall()]
+        for i, x in enumerate(hdn):
+            if x.xinfos is not None:
+                hdn[i] = x._replace(xinfos = json.loads(x.xinfos))
 
         cursor.execute(SQL_GROUPS, [gname + ':%'])
         nt  = namedtuple('Group', [c[0] for c in cursor.description])
@@ -707,14 +713,14 @@ def uploads_by_submissions(request, code, subcode, promo):
                            .select_related('user', 'assignment') \
                            .filter(assignment = the) \
                            .order_by('-date') \
-                           .defer('log', 'xstatus', 'artifact') \
+                           .defer('log', 'artifact') \
                            .all()
     uploads = paginator.Paginator(uploads, 100).get_page(request.GET.get('page'))
 
     context = dict(
         the = the, qst = qst, uploads = uploads,
         nav = _build_nav(request.user, the))
-    context['refresh'] = REFRESH
+    # context['refresh'] = REFRESH
 
     return dutils.render(request, 'uploads_by_submissions.html', context)
 
@@ -791,7 +797,7 @@ def myuploads(request, code, subcode, promo):
 
     ctx = dict(the = the, rqs = rqs, qst = qst,
                nav = _build_nav(request.user, the))
-    ctx['refresh'] = REFRESH
+    # ctx['refresh'] = REFRESH
 
     return dutils.render(request, 'myuploads.html', ctx)
 
@@ -827,7 +833,7 @@ def _upload_details(request, code, subcode, promo, flt, view, must):
         dat = dict(hdn = hdn, cnt = cnt, fls = fls, asgn = the)
 
     context = dict(the = the, data = dat, nav = _build_nav(request.user, the))
-    context['refresh'] = REFRESH
+    # context['refresh'] = REFRESH
 
     return dutils.render(request, view, context)
 
@@ -1470,7 +1476,7 @@ def resource(request, code, subcode, promo, name):
 @dhttp.require_GET
 def recheck(request, code, subcode, promo):
     force = request.GET.get('force', '').lower() in BOOL
-    flt   = Q() if force else Q(status = '') | Q(status = 'errored')
+    flt   = Q() if force else (Q(status = '') | Q(status = 'errored'))
 
     handins = models.HandIn.objects \
                     .select_related('assignment', 'user') \

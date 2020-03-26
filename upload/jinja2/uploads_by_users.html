@@ -28,7 +28,7 @@
 {% for group in groups %}
 {% set guploads=uploads[group] %}
 
-<div id="uploads">
+<div class="thacc">
 <div class="card">
 
 <div class="card-header" data-toggle="collapse"
@@ -48,7 +48,7 @@
   <tr>
     <th>Name</th>
     {% for q in qst %}
-    <th class="text-center">Q.{{ q }}</th>
+    <th class="text-center">Pb.{{ q }}</th>
     {% endfor %}
   </tr>
 </thead>
@@ -64,16 +64,17 @@
       </a>
     </td>
     {% for q in qst %}
-    <td class="text-center text-nowrap status">
+    <td class="text-nowrap status px-3">
     {% if upload[q] %}
     {{ macros.upload_status(upload[q].0) }}
-    &nbsp;
+    <div class="float-right">
     <a target="_blank" href="{{ url('upload:download_login_index', the.code, the.subcode, the.promo, login, q) }}">
       <i class="small olinks fa fa-download"></i>
     </a>
     <a target="_blank" href="{{ url('upload:upload_details_by_login_index', the.code, the.subcode, the.promo, login, q) }}">
       <i class="small olinks fa fa-arrow-circle-right"></i>
     </a>
+    </div>
     {% endif %}
     </td>
     {% endfor %}
@@ -92,9 +93,9 @@
 </div>
 </div>
 </div>
+</div>
 {% endfor %}
 
-</div>
 </div>
 {% else %}
 <div class="alert alert-warning">No uploads</div>

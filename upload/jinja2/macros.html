@@ -1,34 +1,59 @@
-{% set allstatus = ['no-test', 'success', '', 'failure', 'errored', 'late'] %}
+{% set allstatus = ['no-test', '', 'success', 'skipped', 'timeout', 'failure', 'errored', 'late'] %}
 
 {% macro status(code) -%}
 {% set values = {
-     ''       : 'text-warning fa-clock',
+     ''       : 'text-info fa-cogs',
      'success': 'text-success fa-check-circle',
      'failure': 'text-danger fa-times-circle',
+     'skipped': 'text-warning fa-minus-circle',
+     'timeout': 'text-danger fa-clock',
      'no-test': 'text-success fa-save',
      'errored': 'text-danger fa-bomb',
      'late'   : 'text-danger fa-calendar-times',
    } -%}
-fa {{ values.get(code, 'question-circle') }}
+fa {{ values.get(code, 'fa-question-circle') }}
 {%- endmacro %}
 
 {% macro statustxt(code) -%}
 {% set values = {
-     ''       : 'uploaded / waiting for test',
+     ''       : 'waiting for test',
      'success': 'test success',
      'failure': 'test failure',
-     'no-test': 'uploaded / no test',
+     'skipped': 'skipped',
+     'timeout': 'timeout',
+     'no-test': 'no test',
      'errored': 'internal error',
      'late'   : 'late',
    } -%}
 {{ values.get(code, '<unknown>') }}
 {%- endmacro %}
 
+{% macro html_xstatus(xinfos) -%}
+{% for test in xinfos %}
+<span class="{{ status(test.1) }}" data-toggle="tooltip" data-placement="top" title="{{ test.0 }}"></span>
+{% endfor %}
+{%- endmacro %}
+
+{% macro html_status(st) -%}
+<span class="{{ status(st) }}" data-toggle="tooltip" data-placement="top" title="--Global--"></span>
+{%- endmacro %}
+
 {% macro upload_status(hdn) -%}
-<span class="{{ status(hdn.status) }}"></span>
+{{ html_xstatus(hdn.xinfos) if hdn.xinfos else html_status(hdn.status) }}
 {% if hdn.late %}
-<span class="text-danger fas fa-calendar-times"></span>
+- <span class="text-danger fas fa-calendar-times"></span>
 {% endif %}
+{%- endmacro %}
+
+{% macro substatustxt(code) -%}
+{% set values = {
+     'success'           : 'success',
+     'compilation-error ': 'compilation error / invalid syntax',
+     'runtime-error'     : 'runtime error',
+     'invalid-output'    : 'invalid result',
+     'timeout'           : 'timeout',
+   } -%}
+{{ values.get(code, '<unknown>') }}
 {%- endmacro %}
 
 {% macro upload_details(data, key, links, dstudent = True) -%}
@@ -37,6 +62,13 @@ fa {{ values.get(code, 'question-circle') }}
   This submission has been uploaded after the deadline.
 </div>
 {% endif %}
+
+<div class="mb-3">
+{% for c in allstatus -%}
+<span class="{{ status(c) }}"></span> {{ statustxt(c) }}
+{{ '&mdash;' | safe if not loop.last else '' }}
+{% endfor %}
+</div>
 
 <dl class="row">
   {% if dstudent %}
@@ -55,8 +87,39 @@ fa {{ values.get(code, 'question-circle') }}
   <dt class="col-sm-3">Submission date</dt>
   <dd class="col-sm-9">{{ date(data.hdn.date) }}</dd>
   <dt class="col-sm-3">Status</dt>
-  <dd class="col-sm-9">
-    {{ upload_status(data.hdn) }} ({{ statustxt(data.hdn.status) }})
+  <dd class="col-sm-11">
+    {{ upload_status(data.hdn) }}
+    {%- set failings = data.hdn.failings() -%}
+    {% if failings %}
+    {% for failing in failings %}
+    <div class="thacc">
+    <div class="card mt-2">
+      <div class="card-header collapsed" data-toggle="collapse" data-target="#upload-failing-collapse-{{ loop.index }}">
+        <h4 class="panel-title">
+          <button class="btn btn-link">
+            <i class="fa mr-2" aria-hidden="true"></i>
+            {{ failing.0['name'] }} (first error: {{ substatustxt(failing.1['status']) }})
+          </button>
+        </h4>
+      </div>
+      <div id="upload-failing-collapse-{{ loop.index }}" class="card-collapse collapse">
+        <div class="card-body">
+        <p><strong>Input</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
+        {% if failing.1['status'] == 'timeout' %}
+        <p><strong>Timeout</strong></p>
+        <pre class="code"><code>{{ failing.0['timeout'] }}</code></pre>
+        {% endif %}
+        {% if 'backtrace' in failing.1['xinfos'] %}
+        <p><strong>Backtrace</strong></p>
+        <pre class="code pre-scrollable"><code>{{ failing.1['xinfos']['backtrace'] }}</code></pre>
+        {% endif %}
+        </div>
+      </div>
+    </div>
+    </div>
+    {% endfor %}
+    {% endif %}
   </dd>
   {% if data.hdn.artifact.name %}
   <dt class="col-sm-3">Artifacts</dt>

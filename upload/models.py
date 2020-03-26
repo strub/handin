@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import uuid, collections, fnmatch, datetime as dt
+import uuid, collections, itertools as it, fnmatch, datetime as dt, json
 
 from django.conf import settings
 from django.db import models
@@ -139,15 +139,48 @@ class HandIn(models.Model):
     index      = models.IntegerField()
     date       = models.DateTimeField(auto_now_add = True)
     status     = models.CharField(max_length = 16, blank = True)
-    xstatus    = models.TextField(blank = True)
+    xstatus    = JSONField(null = True)
+    xinfos     = JSONField(null = True)
     log        = models.TextField(blank = True)
     artifact   = models.FileField(max_length = 1024, upload_to = handin_artifact, blank = True)
+
+    def save(self, *args, **kwargs):
+        self.xinfos = self.compute_xinfos()
+        super().save(*args, **kwargs)
 
     @property
     def late(self):
         if self.assignment.end is None:
             return False
         return self.date.replace(tzinfo=None).date() >= self.assignment.end
+
+    def compute_xinfos(self):
+        if self.xstatus is None:
+            return None
+
+        aout = []
+        for testv in self.xstatus:
+            failures, success = [], []
+            if testv['result'] is None:
+                aout.append((testv['name'], 'skipped'))
+            else:
+                for test in testv['result']:
+                    (success if test['status'] == 'success' else failures).append(test)
+                aout.append((testv['name'], 'failure' if failures else 'success'))
+        return aout
+
+    def failings(self):
+        if self.xstatus is None:
+            return []
+        aout = []
+        for testv in self.xstatus:
+            if testv['result'] in ('success', None):
+                continue
+            for test in testv['result']:
+                if test['status'] != 'success':
+                    aout.append(({ x: testv[x] for x in ('name', 'timeout') }, test))
+                    break
+        return aout
 
 # --------------------------------------------------------------------
 def handin_upload(instance, filename):
