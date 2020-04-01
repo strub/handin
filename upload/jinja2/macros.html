@@ -82,7 +82,16 @@ fa {{ values.get(code, 'fa-question-circle') }}
     </a>
   </dt>
   <dd class="col-sm-9">
-    {{ data.asgn.code }} - {{ data.asgn.subcode }} - {{ data.hdn.index }} - #{{ data.cnt.0 }} / {{ data.cnt.1 }}
+    {{ data.asgn.code }} - {{ data.asgn.subcode }} - {{ data.hdn.index }} - {{ data.cnt.0 }} / {{ data.cnt.1 }}
+<!--
+    <form class="form-inline">
+      <select>
+      {% for i in range(1, data.cnt.1+1) %}
+      <option value={{ i }}{% if i == data.cnt.0 %} selected{% endif %}>{{ i }}</option>
+      {% endfor %}
+      </select>
+    </form> / {{ data.cnt.1 }}
+-->
   </dd>
   <dt class="col-sm-3">Submission date</dt>
   <dd class="col-sm-9">{{ date(data.hdn.date) }}</dd>
@@ -106,6 +115,10 @@ fa {{ values.get(code, 'fa-question-circle') }}
         <div class="card-body">
         <p><strong>Input</strong></p>
         <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
+        {% if 'index' in failing.1['xinfos'] %}
+        <p><strong>Test #</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['index'] }}</code></pre>
+        {% endif %}
         {% if 'expected-output' in failing.1['xinfos'] %}
         <p><strong>Expected output</strong></p>
         <pre class="code"><code>{{ failing.1['xinfos']['expected-output'] }}</code></pre>

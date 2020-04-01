@@ -802,18 +802,26 @@ def myuploads(request, code, subcode, promo):
     return dutils.render(request, 'myuploads.html', ctx)
 
 # --------------------------------------------------------------------
-def _upload_details(request, code, subcode, promo, flt, view, must):
+def _upload_details(request, code, subcode, promo, flt, view, must, offset = None):
     the = get_assignment(request, code, subcode, promo)
-    hdn = models.HandIn.objects \
-                .select_related('user') \
-                .filter(assignment = the) \
-                .filter(flt) \
-                .order_by('-date') \
-                .first()
     dat = None
+    hdn = models.HandIn.objects \
+                       .select_related('user') \
+                       .filter(assignment = the) \
+                       .filter(flt) \
+                       .order_by('-date')
+
+    if offset is None:
+        hdn = hdn.first()
+    else:
+        print(len(hdn))
+        try:
+            hdn = hdn[len(hdn) - offset]
+        except IndexError:
+            hdn = None
 
     if hdn is None:
-        if must:
+        if must or offset is not None:
             raise http.Http404('no handin')
     else:
         cnt = list(models.HandIn.objects \
@@ -858,11 +866,11 @@ def upload_details_by_uuid(request, code, subcode, promo, uuid):
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def upload_details_by_login_index(request, code, subcode, promo, login, index):
+def upload_details_by_login_index(request, code, subcode, promo, login, index, version = None):
     user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
     view = 'upload_details_by_login_index.html'
     flt  = Q(user = user, index = index)
-    return _upload_details(request, code, subcode, promo, flt, view, False)
+    return _upload_details(request, code, subcode, promo, flt, view, False, version)
 
 # --------------------------------------------------------------------
 def _download_handin(handin, resources, inline = True):
@@ -1469,6 +1477,89 @@ def resource(request, code, subcode, promo, name):
     rep = http.FileResponse(the.contents.open(), content_type = the.ctype)
 
     rep['Content-Disposition'] = 'inline'; return rep
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def grade_view(request, code, subcode, promo, login):
+    the    = get_assignment(request, code, subcode, promo)
+    user   = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    grades = models.HandInGrade.objects
+    grades = grades.filter(user = user, assignment = the)
+    grades = grades.prefetch_related(
+        'handins', 'handins__handin', 'handins__handin__files').first()
+    ctxt   = dict(grades = grades, the = the, user = user)
+    return dutils.render(request, 'grade_view.html', ctxt)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def grade_get_file(request, code, subcode, promo, login, index, uuid):
+    the    = get_assignment(request, code, subcode, promo)
+    user   = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    grades = models.HandInGrade.objects.filter(user = user, assignment = the).first()
+
+    if grades is None:
+        raise http.Http404        
+
+    handin = grades.handins.filter(index = index).first()
+
+    if handin is None or handin.handin is None:
+        raise http.Http404
+
+    filec = handin.handin.files.filter(uuid = uuid).first()
+
+    if filec is None:
+        raise http.Http404
+
+    rep = http.FileResponse(filec.contents.open(), content_type = 'text/plain')
+    rep['Content-Disposition'] = 'inline'; return rep
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_POST
+def grade_start(request, code, subcode, promo, login):
+    the  = get_assignment(request, code, subcode, promo)
+    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    crt  = False
+
+    with db.transaction.atomic():
+        grquery = models.HandInGrade.objects.filter(user = user, assignment = the)
+
+        if not grquery.exists():
+            qsts = questions_of_contents(the.contents)
+            hdns = []
+
+            for question in qsts:
+                handin = models.HandIn.objects \
+                    .filter(assignment = the     ,
+                            user       = user    ,
+                            index      = question) \
+                    .defer('xstatus', 'xinfos') \
+                    .order_by('-date') \
+                    .first()
+                hdns.append((question, handin))
+
+            grading = models.HandInGrade()
+            grading.assignment = the
+            grading.user       = user
+            grading.save()
+
+            for index, handin in hdns:
+                hdng = models.HandInGradeHandIn()
+                hdng.handin = handin
+                hdng.index  = index
+                hdng.grade  = grading
+                hdng.save()
+
+    if crt:
+        messages.info(request, 'Grading started for %s' % (login,))
+    uargs = dict(code = code, subcode = subcode, promo = promo, login = login)
+    url = durls.reverse('upload:grade_view', kwargs = uargs)
+    return http.HttpResponseRedirect(url)
 
 # --------------------------------------------------------------------
 @login_required

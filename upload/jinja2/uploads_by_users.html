@@ -62,6 +62,9 @@
       <a href="{{ url('upload:uploads_by_login', the.code, the.subcode, the.promo, login) }}">
         <span class="fa fa-arrow-circle-right"></span>
       </a>
+      <a href="{{ url('upload:grade_view', the.code, the.subcode, the.promo, login) }}">
+        <span class="fa fa-marker"></span>
+      </a>
     </td>
     {% for q in qst %}
     <td class="text-nowrap status px-3">

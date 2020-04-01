@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-from django.urls import path
+from django.urls import include, path
 
 from . import views
 
@@ -16,95 +16,126 @@ urlpatterns = [
 
     path('groups/<code>/<int:promo>/', views.upload_groups),
 
-    path('agns/<code>/<subcode>/<int:promo>/',
-             views.Assignment.as_view(), name='assignment'),
-
-    path('agns/<code>/<subcode>/<int:promo>/handins/<int:index>/',
-             views.handin, name='handin'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/',
-             views.uploads_by_users, name='uploads_by_users'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/',
-             views.uploads_by_login, name='uploads_by_login'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-uuid/<uuid:uuid>',
-             views.upload_details_by_uuid, name='upload_details'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-users/<login>/<int:index>',
-             views.upload_details_by_login_index, name='upload_details_by_login_index'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-questions/',
-             views.uploads_by_questions, name='uploads_by_questions'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:by-submissions/',
-             views.uploads_by_submissions, name='uploads_by_submissions'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:activity/',
-             views.uploads_activity, name='uploads_activity'),
-
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:activity/:data/',
-             views.uploads_activity_data, name='uploads_activity_data'),
 
     path('agns/<code>/<int:promo>/uploads/:download/',
-             views.download_all_code_promo, name='download_all_code_promo'),
+        views.download_all_code_promo, name='download_all_code_promo'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/',
-             views.download_all, name='download_all'),
+    path('agns/<code>/<subcode>/<int:promo>/', include([
+        path('', views.Assignment.as_view(), name='assignment'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/:question/<int:index>/',
-             views.download_index, name='download_index'),
+        path('handins/<int:index>/', views.handin, name='handin'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/',
-             views.download_login, name='download_login'),
+        path('uploads/', include([
+            path(':by-uuid/<uuid:uuid>',
+                     views.upload_details_by_uuid, name='upload_details'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<login>/<int:index>/',
-             views.download_login_index, name='download_login_index'),
+            path(':by-users/', include([
+                path('',
+                     views.uploads_by_users, name='uploads_by_users'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<login>/<int:index>/',
-             views.artifact_login_index, name='artifact_login_index'),
+                path('<login>/',
+                     views.uploads_by_login, name='uploads_by_login'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>',
-             views.download_uuid, name='download_uuid'),
+                path('<login>/<int:index>/', include([
+                    path('',
+                         views.upload_details_by_login_index, name='upload_details_by_login_index'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:download/<uuid:uuid>/:data/',
-             views.download_uuid_data, name='download_uuid_data'),
+                    path(':version/<int:version>/',
+                         views.upload_details_by_login_index, name='upload_details_by_login_index'),
+                ])),
+            ])),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:artifact/<uuid:uuid>',
-             views.artifact_uuid, name='artifact_uuid'),
+            path(':by-questions/',
+                     views.uploads_by_questions, name='uploads_by_questions'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/',
-             views.myuploads, name='myuploads'),
+            path(':by-submissions/',
+                     views.uploads_by_submissions, name='uploads_by_submissions'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/<int:index>/',
-             views.myupload_details, name='myupload'),
+            path(':activity/', include([
+                path('',
+                     views.uploads_activity, name='uploads_activity'),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/:download/<int:index>/',
-             views.download_myupload, name='myupload-dw'),
+                path(':data/',
+                     views.uploads_activity_data, name='uploads_activity_data'),
+            ])),
 
-    path('agns/<code>/<subcode>/<int:promo>/uploads/:my/:artifacts/<int:index>/',
-             views.artifacts_myupload, name='myupload-art'),
+            path(':download/', include([
+                path('',
+                     views.download_all, name='download_all'),
 
-    path('agns/<code>/<subcode>/<int:promo>/resources/<path:name>',
-             views.resource, name='resource'),
+                path(':question/<int:index>/',
+                     views.download_index, name='download_index'),
 
-    path('run-check/:uuid/<uuid:uuid>/',
+                path('<login>/',
+                     views.download_login, name='download_login'),
+
+                path('<login>/<int:index>/',
+                     views.download_login_index, name='download_login_index'),
+
+                path('<uuid:uuid>',
+                     views.download_uuid, name='download_uuid'),
+
+                path('<uuid:uuid>/:data/',
+                     views.download_uuid_data, name='download_uuid_data'),
+            ])),
+
+            path(':artifact/', include([
+                path('<login>/<int:index>/',
+                     views.artifact_login_index, name='artifact_login_index'),
+
+                path('<uuid:uuid>',
+                     views.artifact_uuid, name='artifact_uuid'),
+            ])),
+
+            path(':my/', include([
+                path('',
+                     views.myuploads, name='myuploads'),
+
+                path('<int:index>/',
+                     views.myupload_details, name='myupload'),
+
+                path(':download/<int:index>/',
+                     views.download_myupload, name='myupload-dw'),
+
+                path(':artifacts/<int:index>/',
+                     views.artifacts_myupload, name='myupload-art'),
+            ])),
+        ])),
+
+        path('grades/', include([
+            path(':login/<login>/', include([
+                path('', views.grade_view, name='grade_view'),
+
+                path(':files/<int:index>/<uuid:uuid>/',
+                     views.grade_get_file, name='grade_get_file'),
+
+                path(':start/', views.grade_start, name='grade_start'),
+            ])),
+        ])),
+
+        path('resources/<path:name>', views.resource, name='resource'),
+
+        path(':status/', views.status, name='status'),
+    ])),
+
+    path('run-check/', include([
+        path(':uuid/<uuid:uuid>/',
              views.recheck_uuid),
 
-    path('run-check/<code>/<subcode>/<int:promo>/',
-             views.recheck, name='check'),
+        path('<code>/<subcode>/<int:promo>/', include([
+            path('',
+                 views.recheck, name='check'),
 
-    path('run-check/<code>/<subcode>/<int:promo>/:by-users/<login>/',
-             views.recheck_user, name='check_user'),
+            path(':by-users/<login>/',
+                 views.recheck_user, name='check_user'),
 
-    path('run-check/<code>/<subcode>/<int:promo>/:by-users/<login>/<int:index>/',
-             views.recheck_user_index, name='check_user_index'),
+            path(':by-users/<login>/<int:index>/',
+                 views.recheck_user_index, name='check_user_index'),
 
-    path('run-check/<code>/<subcode>/<int:promo>/:by-questions/<int:index>/',
-             views.recheck_index, name='check_index'),
-
-    path('asgn/<code>/<subcode>/<int:promo>/:status/',
-             views.status, name='status'),
+            path(':by-questions/<int:index>/',
+                 views.recheck_index, name='check_index'),
+        ])),
+    ])),
 
     path('agns/:clean/', views.clean),
 ]

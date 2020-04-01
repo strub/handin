@@ -1,0 +1,180 @@
+{% extends 'layout.html' %}
+{% import 'macros.html' as macros %}
+
+{% block title %}Grading &amp; commenting{% endblock %}
+
+{% block headendcontents %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/github.min.css"
+      integrity="sha384-snvkDYLVttT3SBWz8WVvdGfmManlusUoAT3Agqco/8yBV7/tlflWJCUmP2O9f9wF" crossorigin="anonymous">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"
+        integrity="sha384-CWWTkjyKvLwc1j/u6LmdJiGCWFkQtH9MxBpmgzrFFwMhF5qM2u/FzXrhV3nUfs0l" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlightjs-line-numbers.js/2.7.0/highlightjs-line-numbers.min.js"
+        integrity="sha256-3f4oLge37B7QacI/ksfIIW3bPxh5xOli03/VKtvRWgU=" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.loadtemplate/1.5.10/jquery.loadTemplate.min.js"
+        integrity="sha256-mF3k3rmuuGVi/6GhJ5atwMd7JsTsQhULB6GyLaFPrMU=" crossorigin="anonymous"></script>
+{% endblock %}
+
+{% block contents %}
+<h2>Grading &amp; commenting</h2>
+
+{% if grades %}
+<p class="alert alert-info">
+  <strong>Started on:</strong> {{ date(grades.date) }}
+</p>
+
+<table class="table table-striped uploads">
+<thead>
+  <tr>
+    <th>Problem</th>
+    <th>Date</th>
+    <th>Status</th>
+  </tr>
+</thead>
+<tbody>
+  {% for handin in grades.handins.all() %}
+  <tr>
+    <td>{{ handin.index }}</td>
+    {% if handin.handin %}
+    <td>{{ date(handin.handin.date) }}</td>
+    <td>{{ macros.html_xstatus(handin.handin.xinfos) }}</td>
+    {% else %}
+    <td>-</td><td>-</td>
+    {% endif %}
+  {% endfor %}
+</tbody>
+</table>
+
+<hr />
+
+<div><form>
+  <div class="form-row"><div class="col">
+    <select id="handinfile" name="handinfile" class="form-control">
+    <option value="">--- select file ---</option>
+    {% for handin in grades.handins.all() %}
+    <option value=""><strong>Pb.{{ handin.index }}/</strong></option>
+    {% if handin.handin %}
+    {% for file in handin.handin.files.all() %}
+    <option value="{{ handin.index }}/{{ file.uuid }}">&nbsp;&nbsp;&nbsp;&nbsp; {{ file.display_name }}</option>
+    {% endfor %}
+    {% endif %}
+    {% endfor %}
+    </select>
+  </div>
+</form></div>
+
+<div class="mt-3">
+  <pre id="code">Load a file first...</pre>
+</div>
+
+<style>
+.octicon {
+    display: inline-block;
+    vertical-align: text-top;
+    fill: white;
+}
+
+.add-line-comment .octicon {
+    vertical-align: text-top;
+    pointer-events: none;
+}
+
+.btn-link {
+  padding: 0;
+  display: inline-block;
+  user-select: none;
+  border: none;
+  text-decoration: none;
+  white-space: no-wrap;
+}
+
+.add-comment-button {
+    position: relative;
+    z-index: 5;
+    float: left;
+    width: 22px;
+    height: 22px;
+    margin: -2px -10px -2px -20px;
+    color: #fff;
+    text-align: center;
+    text-indent: 0;
+    vertical-align: baseline;
+    cursor: pointer;
+    background-color: #0366d6;
+    background-image: linear-gradient(#0372ef,#0366d6);
+    border-radius: 3px;
+    box-shadow: 0 1px 4px rgba(27,31,35,.15);
+    opacity: 0;
+    transition: transform .1s ease-in-out;
+    transform: scale(.8);
+}
+
+.is-hovered .add-comment-button {
+  opacity: 1;
+}
+
+.add-comment-button:hover {
+  transform: scale(1);
+}
+</style>
+
+<script type="text/html" id="tmpl-cross">
+  <svg class="octicon octicon-plus" viewBox="0 0 12 14" version="1.1" width="12" height="14">
+    <path fill-rule="evenodd" d="M12 9H7v5H5V9H0V7h5V2h2v5h5v2z"></path>
+  </svg>
+</script>
+
+<script type="text/javascript">
+hljs.initHighlightingOnLoad();
+hljs.initLineNumbersOnLoad();
+
+$(document).ready(function() {
+    $('#handinfile').change(function() {
+        var uuid = $(this).children('option:selected').val();
+
+        function doit(x) {
+            $('#code').empty().append($('<code>').text(x));
+            $('#code > code').each(function(vidx, block) {
+                hljs.highlightBlock(block);
+                hljs.lineNumbersBlock(block);
+            });
+                    console.log($('<div>'))
+            window.setTimeout(function () {
+                $('#code .hljs-ln-code').each(function(vidx, block) {
+                    $(block).hover(
+                        function(){ $(this).addClass('is-hovered') },
+                        function(){ $(this).removeClass('is-hovered') }
+                    )
+                    $(block).append($('<button>', { class: 'btn btn-link add-comment-button' }));
+                    $(block).find('button').loadTemplate($("#tmpl-cross"))
+                    $(block).find('button').click(function(event) {
+                    });
+                });
+            }, 0);
+        }
+
+        if (uuid) {
+            $.get(':files/' + uuid, null, doit, 'text');
+        };
+    });
+});
+</script>
+
+{% else %}
+<div class="alert alert-warning">
+Grading for this student has not yet started.
+</div>
+
+<form class="form" role="form" method="post" accept-charset="UTF-8"
+      action="{{ url('upload:grade_start', the.code, the.subcode, the.promo, user.login) }}" >
+  <input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
+  <button class="btn btn-outline-primary btn-lg btn-block">
+    Start grading
+  </button>
+</form>
+
+{% endif %}
+
+{% endblock %}

@@ -138,7 +138,6 @@ hr {
 pre, code, kbd, samp {
   color: #000;
   font-family: monospace, monospace;
-  font-size: 0.98em;
 }
 
 pre {
@@ -243,7 +242,7 @@ figcaption {
   margin: 0 0 .8em;
 }
 
-table {
+table.table {
   margin-bottom: 2em;
   border-bottom: 1px solid #ddd;
   border-right: 1px solid #ddd;
@@ -251,14 +250,14 @@ table {
   border-collapse: collapse;
 }
 
-table th {
+table.table th {
   padding: .2em 1em;
   background-color: #eee;
   border-top: 1px solid #ddd;
   border-left: 1px solid #ddd;
 }
 
-table td {
+table.table td {
   padding: .2em 1em;
   border-top: 1px solid #ddd;
   border-left: 1px solid #ddd;
@@ -586,9 +585,11 @@ ol.example {
 }
 
 /* Code */
+/*
 pre > code {
-  font-size: 85%;
+  font-size: 75%;
 }
+*/
 
 div.sourceCode {
   padding: 10px;
@@ -598,7 +599,7 @@ div.sourceCode {
 
 .hljs-ln-numbers {
   text-align: center;
-  color: black;
+  color: #ccc;
   border-right: 1px solid #999;
   vertical-align: top;
   padding-right: 5px;
@@ -610,8 +611,13 @@ div.sourceCode {
   user-select: none;
 }
 
+.hljs-ln-n {
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
+
 .hljs-ln-code {
-  padding-left: 10px;
+  padding-left: 10px !important;
 }
 
 /* qclasses */
@@ -629,4 +635,3 @@ div.outtopic {
   border-left: 3px solid red;
   padding-left: 10px;
 }
-

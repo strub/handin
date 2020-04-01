@@ -1,5 +1,5 @@
 # --------------------------------------------------------------------
-import uuid, collections, itertools as it, fnmatch, datetime as dt, json
+import os, uuid, collections, itertools as it, fnmatch, datetime as dt, json
 
 from django.conf import settings
 from django.db import models
@@ -189,9 +189,51 @@ def handin_upload(instance, filename):
 
 # --------------------------------------------------------------------
 class HandInFile(models.Model):
+    uuid     = models.UUIDField(editable    = False,
+                                primary_key = True,
+                                default     = uuid.uuid4)
+    handin   = models.ForeignKey(HandIn, on_delete = models.CASCADE, related_name = 'files')
+    name     = models.CharField(max_length = 256)
+    contents = models.FileField(max_length = 1024, upload_to = handin_upload)
+
+    @property
+    def display_name(self):
+        return os.path.basename(self.contents.name)
+
+# --------------------------------------------------------------------
+class HandInGrade(models.Model):
+    class Meta:
+        unique_together = (('assignment', 'user'))
+
     uuid       = models.UUIDField(editable    = False,
                                   primary_key = True,
                                   default     = uuid.uuid4)
-    handin     = models.ForeignKey(HandIn, on_delete = models.CASCADE)
-    name       = models.CharField(max_length = 256)
-    contents   = models.FileField(max_length = 1024, upload_to = handin_upload)
+    date       = models.DateTimeField(auto_now_add = True)
+    assignment = models.ForeignKey(Assignment, on_delete = models.CASCADE)
+    user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.CASCADE)
+
+# --------------------------------------------------------------------
+class HandInGradeHandIn(models.Model):
+    class Meta:
+        unique_together = (('grade', 'index'))
+        ordering = (('index',))
+
+    uuid       = models.UUIDField(editable    = False,
+                                  primary_key = True,
+                                  default     = uuid.uuid4)
+    grade      = models.ForeignKey(HandInGrade, on_delete = models.CASCADE, related_name='handins')
+    index      = models.IntegerField()
+    handin     = models.ForeignKey(HandIn, on_delete = models.CASCADE, null = True)
+
+# --------------------------------------------------------------------
+class HandInGradeComment(models.Model):
+    uuid       = models.UUIDField(editable    = False,
+                                  primary_key = True,
+                                  default     = uuid.uuid4)
+    grade      = models.ForeignKey(HandInGrade, on_delete = models.CASCADE)
+    author     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.CASCADE)
+    timestamp  = models.DateTimeField()
+    comment    = models.TextField()
+    handinfile = models.ForeignKey(HandInFile, on_delete = models.CASCADE, null = True)
+    handinloc  = models.IntegerField(null = True)
+    finalized  = models.BooleanField(default = False)
