@@ -8,6 +8,7 @@ from django.contrib.auth.base_user import BaseUserManager
 from django.utils.translation import ugettext_lazy as _
 from django.db.models.signals import post_delete
 from django.dispatch import receiver
+from django.utils import timezone
 from jsonfield import JSONField
 
 # --------------------------------------------------------------------
@@ -31,6 +32,31 @@ class NatListField(models.TextField):
         if value is None:
             return value
         return ' '.join('%d' % (x,) for x in value)
+
+    def value_to_string(self, obj):
+        return self.get_db_prep_value(self._get_val_from_obj(obj))
+
+# --------------------------------------------------------------------
+class TagsListField(models.TextField):
+    description   = "Stores a list of non-negative integers"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def to_python(self, value):
+        if not value:
+            value = []
+        if isinstance(value, list):
+            return value
+        return value.split(',')
+
+    def from_db_value(self, value, expression, connection, context):
+        return self.to_python(value)
+
+    def get_prep_value(self, value):
+        if value is None:
+            return value
+        return ','.join('%s' % (x,) for x in value)
 
     def value_to_string(self, obj):
         return self.get_db_prep_value(self._get_val_from_obj(obj))
@@ -137,7 +163,7 @@ class HandIn(models.Model):
     user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.CASCADE)
     assignment = models.ForeignKey(Assignment, on_delete = models.CASCADE)
     index      = models.IntegerField()
-    date       = models.DateTimeField(auto_now_add = True)
+    date       = models.DateTimeField(default = timezone.now)
     status     = models.CharField(max_length = 16, blank = True)
     xstatus    = JSONField(null = True)
     xinfos     = JSONField(null = True)
@@ -211,6 +237,7 @@ class HandInGrade(models.Model):
     date       = models.DateTimeField(auto_now_add = True)
     assignment = models.ForeignKey(Assignment, on_delete = models.CASCADE)
     user       = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.CASCADE)
+    finalized  = models.BooleanField(default = False)
 
 # --------------------------------------------------------------------
 class HandInGradeHandIn(models.Model):
@@ -230,10 +257,11 @@ class HandInGradeComment(models.Model):
     uuid       = models.UUIDField(editable    = False,
                                   primary_key = True,
                                   default     = uuid.uuid4)
-    grade      = models.ForeignKey(HandInGrade, on_delete = models.CASCADE)
+    grade      = models.ForeignKey(HandInGrade, on_delete = models.CASCADE, related_name='comments')
     author     = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete = models.CASCADE)
-    timestamp  = models.DateTimeField()
+    timestamp  = models.DateTimeField(auto_now_add = True)
     comment    = models.TextField()
-    handinfile = models.ForeignKey(HandInFile, on_delete = models.CASCADE, null = True)
-    handinloc  = models.IntegerField(null = True)
-    finalized  = models.BooleanField(default = False)
+    handinfile = models.ForeignKey(HandInFile, on_delete = models.CASCADE)
+    handinloc  = models.IntegerField()
+    tags       = TagsListField(null = True)
+    delta      = models.IntegerField(null = True)

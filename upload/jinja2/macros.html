@@ -56,7 +56,7 @@ fa {{ values.get(code, 'fa-question-circle') }}
 {{ values.get(code, '<unknown>') }}
 {%- endmacro %}
 
-{% macro upload_details(data, key, links, dstudent = True) -%}
+{% macro upload_details(data, key, links, dstudent = True, plink = False) -%}
 {% if data.hdn.late %}
 <div class="alert alert-danger">
   This submission has been uploaded after the deadline.
@@ -80,6 +80,13 @@ fa {{ values.get(code, 'fa-question-circle') }}
     <a href="{{ url(links['download'], data.asgn.code, data.asgn.subcode, data.asgn.promo, *key) }}">
       <span class="fa fa-download"></span>
     </a>
+    {% if plink %}
+    {%- set ourl = request.build_absolute_uri(
+         url('upload:upload_details', data.asgn.code, data.asgn.subcode, data.asgn.promo, data.hdn.uuid)) -%}
+    - <button class="btn btn-outline-dark btn-sm copy-button" data-clipboard-text="{{ ourl }}">
+      <span class="fas fa-clipboard"></span>
+    </button>
+    {% endif %}
   </dt>
   <dd class="col-sm-9">
     {{ data.asgn.code }} - {{ data.asgn.subcode }} - {{ data.hdn.index }} - {{ data.cnt.0 }} / {{ data.cnt.1 }}
@@ -113,7 +120,13 @@ fa {{ values.get(code, 'fa-question-circle') }}
       </div>
       <div id="upload-failing-collapse-{{ loop.index }}" class="card-collapse collapse">
         <div class="card-body">
-        <p><strong>Input</strong></p>
+        <p>
+          <strong>Input</strong>
+          - <button class="btn btn-outline-dark btn-sm copy-button"
+                    data-clipboard-text="{{ failing.1['xinfos']['input'] }}">
+              <span class="fas fa-clipboard"></span>
+            </button>
+        </p>
         <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
         {% if 'index' in failing.1['xinfos'] %}
         <p><strong>Test #</strong></p>

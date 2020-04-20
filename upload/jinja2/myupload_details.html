@@ -1,5 +1,5 @@
 {% extends 'layout.html' %}
-{% import 'macros.html' as macros %}
+{% import 'macros.html' as macros with context %}
 
 {% block title %}My uploads{% endblock %}
 
@@ -11,7 +11,7 @@
       artifact = 'upload:myupload-art') %}
 
 {% if data %}
-{{ macros.upload_details(data, (data.hdn.index,), links, False) }}
+{{ macros.upload_details(data, (data.hdn.index,), links, False, 'upload-link') }}
 {% else %}
 <p class="alert alert-warning">No submissions</p>
 {% endif %}

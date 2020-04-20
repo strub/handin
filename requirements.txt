@@ -1,3 +1,4 @@
+beautifulsoup4
 django
 django-background-tasks
 django-cleanup
@@ -7,10 +8,11 @@ humanfriendly
 jinja2
 jsonfield
 jsonschema
-pandoc-codeblock-include
+parsedatetime
 psutil
 pygments
 pypandoc
 python-decouple
 python-magic
 python-mimeparse
+pytz 

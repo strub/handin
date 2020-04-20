@@ -1,8 +1,8 @@
 # --------------------------------------------------------------------
 import sys, os, re, datetime as dt, tempfile, zipfile, tempfile, io
 import json, shutil, uuid as muuid, docker, math
-import multiprocessing as mp, psutil
-import itertools as it, humanfriendly as hf
+import multiprocessing as mp, psutil, parsedatetime as pdt, pytz
+import itertools as it, humanfriendly as hf, bs4
 from   collections import namedtuple, OrderedDict as odict
 
 from   django.conf import settings
@@ -11,6 +11,7 @@ import django.core.paginator as paginator
 from   django.core.cache import cache
 from   django.core.files.base import File, ContentFile
 from   django.core.files.storage import default_storage
+import django.forms as forms
 import django.http as http
 import django.views as views
 import django.urls as durls
@@ -23,7 +24,7 @@ from   django.contrib import messages
 import django.contrib.auth as dauth
 from   django.contrib.auth.decorators import login_required, permission_required
 import django.shortcuts as dutils
-import django.utils as utils, django.utils.timezone
+import django.utils as utils, django.utils.timezone, django.utils.dateparse
 import django.db as db
 
 import background_task as bt
@@ -32,6 +33,7 @@ import background_task.models as btmodels
 from . import models
 
 from handin.middleware import eredirect
+from handin.models import User
 
 # --------------------------------------------------------------------
 ACDIR = os.path.join(os.path.dirname(__file__), 'autocorrect')
@@ -61,11 +63,12 @@ def pandoc_gen(value, template):
 
     template = os.path.join(ROOT, 'pandoc', template + '.html')
 
+    # '--filter', 'pandoc-codeblock-include',
+
     args = dict(
         to         = 'html5+smart+raw_tex',
         format     = 'markdown',
         extra_args = [
-            '--filter', 'pandoc-codeblock-include',
             '--shift-heading-level-by=2',
             '--mathjax=https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.6/MathJax.js?config=TeX-AMS-MML_HTMLorMML',
             '--standalone', '--toc', '--toc-depth=4',
@@ -95,7 +98,7 @@ class UnseekableStream(io.RawIOBase):
 # --------------------------------------------------------------------
 REFRESH  = 60
 MAXFILES = 30
-MAXSIZE  = 10 * 1024 * 1024
+MAXSIZE  = 50 * 1024 * 1024
 MINDELTA = 10
 BOOL     = ('1', 'on')
 
@@ -125,7 +128,8 @@ SCHEMA = dict(
         start       = dict(type = ['string', 'null'], format = 'date'),
         end         = dict(type = ['string', 'null'], format = 'date'),
         lateok      = dict(type = ['boolean']),
-        contents    = dict(type = 'string'),
+        contents    = dict(type = ['string']),
+        sign        = dict(type = ['boolean']),
         required    = dict(
             type = 'object',
             additionalProperties = dict(
@@ -156,10 +160,9 @@ SCHEMA = dict(
             additionalProperties = False,
             properties = dict(
                 forno = dict(type = 'array', items = dict(type = 'number')),
-                files = RSCHEMA,
                 extra = RSCHEMA,
             ),
-            required = ['forno', 'files', 'extra'],
+            required = ['forno', 'extra'],
         )
     ),
     required = ['code', 'subcode', 'promo', 'start', 'end',
@@ -198,7 +201,7 @@ FORM = r'''
     <div class="input-group">
       <div class="form-check">
         <input type="checkbox" class="form-check-input"
-               name="files-reuse" value="1" id="files-reuse">
+               name="files-reuse" value="1">
         <label class="form-check-label" for="files-reuse">
           Reuse files from previous submissions
           <span class="far fa-question-circle" data-toggle="tooltip"
@@ -206,6 +209,7 @@ FORM = r'''
         </label>
       </div>
     </div>
+    %%(admin)s
   </div>
 </form>
 ''' % (' '.join([
@@ -213,6 +217,28 @@ FORM = r'''
     'last submission of this question,',
     'last submissions from previous questions (from last to first)',
   ]))
+
+FORM_ADMIN = r'''
+    <div class="form-group pt-3">
+      <label for="login">
+        Submit on behalf of
+      </label>
+      <select class="form-control autoselect" name="login"
+         placeholder="Type to search..." autocomplete="off"></select>
+      </select>
+    </div>
+    <div class="form-group">
+      <label for="datetime">
+        Force date
+      </label>
+      <div class="input-group date dtpicker" id="datetimepicker-%(index)d" data-target-input="nearest">
+        <input type="text" name="datetime" class="form-control datetimepicker-input" data-target="#datetimepicker-%(index)d" />
+        <div class="input-group-append" data-target="#datetimepicker-%(index)d" data-toggle="datetimepicker">
+          <div class="input-group-text"><i class="fa fa-calendar"></i></div>
+        </div>
+      </div>
+    </div>
+'''
 
 F_REQUIRED     = '<div class="alert alert-light">Expected files: %s</div>'
 NO_SUBMIT      = '<div class="alert alert-danger">Upload form is only available when connected</div>'
@@ -362,7 +388,7 @@ def _defer_check_internal(uuid):
                     'timeout', '--preserve-status', '--signal=KILL', '180',
                     '/opt/handin/bin/python3',
                     '/opt/handin/user/scripts/achecker-%s-%d.py' % (hdn.assignment.code, hdn.assignment.promo),
-                    '/opt/handin/user',
+                    '/opt/handin/user', str(hdn.assignment.subcode), str(hdn.index)
                 ]
     
                 log += ['running docker...']
@@ -878,8 +904,14 @@ def _download_handin(handin, resources, inline = True):
         raise http.Http404('no resources')
 
     if len(resources) == 1:
+        with resources[0].contents.open() as stream:
+            import magic
+
+            ctype = magic.Magic(mime = True).from_buffer(stream.read(2048))
+            ctype = ctype if ctype else 'text/plain'
+
         response = http.FileResponse(
-            resources[0].contents.open(), content_type = 'text/plain')
+            resources[0].contents.open(), content_type = ctype)
         response['Content-Disposition'] = \
             '%s; filename="%s"' % ('inline' if inline else 'attachment',
                                    resources[0].name)
@@ -1172,8 +1204,34 @@ def handin(request, code, subcode, promo, index):
                 ('upload:assignment', args=(code, subcode, promo))
     url   = url + '#submit-%d' % (index,)
 
+    login = request.POST.get('login', '').strip()
+    fdate = request.POST.get('datetime', '').strip()
+
+    if login:
+        if not request.user.has_perm('upload.admin'):
+            return http.HttpResponseForbidden()
+        user = User.objects.get(pk = login)
+        if user is None:
+            messages.error(request, 'Cannot find: ' + login)
+            return dutils.redirect(url)
+    else:
+        user = request.user
+
+    if fdate:
+        if not request.user.has_perm('upload.admin'):
+            return http.HttpResponseForbidden()
+        try:
+            subdate, _ = pdt.Calendar().parseDT(fdate)
+        except ValueError:
+            messages.error(request, 'Invalid date-time: ' + fdate)
+            return dutils.redirect(url)
+        subdate = subdate.astimezone(utils.timezone.get_current_timezone())
+        subdate = subdate.astimezone(pytz.timezone('UTC'))
+    else:
+        subdate = utils.timezone.now()
+
     if the.end is not None and not the.lateok:
-        if dt.datetime.now().date() >= the.end:
+        if subdate.date() >= the.end:
             messages.error(request,
                 'The assignment has been closed')
             return dutils.redirect(url)
@@ -1196,19 +1254,19 @@ def handin(request, code, subcode, promo, index):
 
     diffd = None
     lastd = models.HandIn.objects \
-                         .filter(user = request.user) \
+                         .filter(user = user) \
                          .values('date') \
                          .order_by('-date') \
                          .first()
 
-    if lastd is not None:
-        diffd = utils.timezone.now() - lastd['date']
-
-    if diffd is not None and diffd.total_seconds() - MINDELTA < -1.0:
-        messages.error(request,
-            'You are submitting files too fast (wait %d second(s))' % \
-                (MINDELTA - diffd.total_seconds()))
-        return dutils.redirect(url)
+#    if lastd is not None:
+#        diffd = subdate - lastd['date']
+#
+#    if diffd is not None and diffd.total_seconds() - MINDELTA < -1.0:
+#        messages.error(request,
+#            'You are submitting files too fast (wait %d second(s))' % \
+#                (MINDELTA - diffd.total_seconds()))
+#        return dutils.redirect(url)
 
     reuse   = request.POST.get('files-reuse', '').lower() in BOOL
     rmap    = set()
@@ -1219,7 +1277,7 @@ def handin(request, code, subcode, promo, index):
         try:
             for hdn in models.HandIn.objects \
                              .filter(assignment = the,
-                                     user = request.user,
+                                     user = user,
                                      index__lte = index) \
                              .defer('log', 'artifact') \
                              .order_by('-index', '-date') \
@@ -1247,11 +1305,12 @@ def handin(request, code, subcode, promo, index):
 
     with db.transaction.atomic():
         handin = models.HandIn(
-            user       = request.user,
+            user       = user,
             assignment = the,
             index      = index,
-            date       = utils.timezone.now(),
+            date       = subdate,
         )
+        print(handin.date)
         handin.save()
 
         for stream in files:
@@ -1326,6 +1385,13 @@ class Assignment(views.generic.TemplateView):
 
         if text is None:
             text = pandoc_gen(the.contents, 'contents')
+            text = bs4.BeautifulSoup(text, 'html.parser')
+            for tag in text.find_all('table'):
+                tag['class'] = tag.get('class', []) + \
+                    ['table', 'table-striped', 'table-borderless', 'table-hover', 'table-sm']
+            for tag in text.find_all('thead'):
+                tag['class'] = tag.get('class', []) + ['thead-dark']
+            text = str(text)
             cache.set(self.get_cache_key(code, subcode, promo, 'text'), text)
 
         if header is None:
@@ -1349,7 +1415,9 @@ class Assignment(views.generic.TemplateView):
                     date  = date.strftime('%B %d, %Y (%H:%M:%S)')
                     data += LAST_SUBMIT % (utils.html.escape(date),)
 
-                data += FORM % (dict(index = index))
+                adm   = FORM_ADMIN if self.request.user.has_perm('upload:admin') else ''
+                adm   = adm % (dict(index = index))
+                data += FORM % (dict(index = index, admin = adm))
 
                 reqs = the.required(index)
                 if reqs:
@@ -1368,7 +1436,7 @@ class Assignment(views.generic.TemplateView):
 
         handins = None
         if self.request.user.is_authenticated:
-            if late and not the.lateok:
+            if not (self.request.user.has_perm('upload.admin')) and (late and not the.lateok):
                 text = re.sub(UPRE, upload_match_late, text)
             else:
                 handins = dict()
@@ -1415,9 +1483,6 @@ class Assignment(views.generic.TemplateView):
                     base64.b64decode(res['contents'], validate = True)
 
             if 'autocorrect' in jso:
-                for res in jso['autocorrect']['files']:
-                    res['contents'] = \
-                        base64.b64decode(res['contents'], validate = True)
                 for res in jso['autocorrect']['extra']:
                     res['contents'] = \
                         base64.b64decode(res['contents'], validate = True)
@@ -1458,8 +1523,6 @@ class Assignment(views.generic.TemplateView):
             for res in jso['resources']:
                 self.save_resource(asg, res, 'resource')
             if acorrect is not None:
-                for res in acorrect['files']:
-                    self.save_resource(asg, res, 'tests/files')
                 for res in acorrect['extra']:
                     self.save_resource(asg, res, 'tests/extra')
 
@@ -1489,33 +1552,208 @@ def grade_view(request, code, subcode, promo, login):
     grades = grades.filter(user = user, assignment = the)
     grades = grades.prefetch_related(
         'handins', 'handins__handin', 'handins__handin__files').first()
-    ctxt   = dict(grades = grades, the = the, user = user)
+
+    qst = set()
+
+    if grades is not None:
+        for handin in grades.handins.all():
+            if handin.handin is None:
+                continue
+            xinfos = handin.handin.xinfos
+            if xinfos is None:
+                continue
+            qst.update(x[0] for x in xinfos)
+
+    ctxt = dict(grades = grades, the = the, user = user,
+                qst = sorted(qst), nav = _build_nav(request.user, the))
     return dutils.render(request, 'grade_view.html', ctxt)
 
 # --------------------------------------------------------------------
 @login_required
 @permission_required('upload.admin', raise_exception=True)
 @dhttp.require_GET
-def grade_get_file(request, code, subcode, promo, login, index, uuid):
+def grade_get_files(request, code, subcode, promo, login):
     the    = get_assignment(request, code, subcode, promo)
     user   = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
-    grades = models.HandInGrade.objects.filter(user = user, assignment = the).first()
+    grades = models.HandInGrade.objects.filter(user = user, assignment = the)
+    grades = grades.prefetch_related('handins', 'handins__handin', 'handins__handin__files')
+    grades = grades.first()
 
     if grades is None:
         raise http.Http404        
 
-    handin = grades.handins.filter(index = index).first()
+    files = []
 
-    if handin is None or handin.handin is None:
+    for handin in grades.handins.order_by('index').all():
+        if handin.handin is None:
+            continue
+        for filec in handin.handin.files.all():
+            with filec.contents.open() as stream:
+                files.append(dict(
+                    name     = os.path.basename(filec.name),
+                    index    = handin.handin.index,
+                    uuid     = filec.uuid,
+                    contents = stream.read().decode('utf-8', errors = 'replace'),
+                ))
+
+    comments = grades.comments.select_related('author', 'handinfile')
+    comments = comments.order_by('timestamp')
+    jscm     = {}
+
+    for comment in comments.all():
+        jscm.setdefault(str(comment.handinfile.uuid), []) \
+            .append(dict(
+                uuid      = comment.uuid,
+                author    = comment.author.fullname,
+                timestamp = comment.timestamp,
+                comment   = comment.comment,
+                lineno    = comment.handinloc,
+                tags      = comment.tags,
+                delta     = comment.delta,
+            ))
+
+    return http.JsonResponse(dict(
+        finalized = grades.finalized,
+        files     = files,
+        comments  = jscm,
+    ))
+
+# --------------------------------------------------------------------
+class AddGradeCommentForm(forms.Form):
+    uuid    = forms.UUIDField()
+    index   = forms.IntegerField(min_value = 0)
+    lineno  = forms.IntegerField(min_value = 0)
+    comment = forms.CharField(strip = True)
+    tags    = forms.CharField(required = False)
+    delta   = forms.IntegerField(min_value = -100, max_value = 100, required = False)
+
+    def clean(self):
+        data = self.cleaned_data
+        tags = data.get('tags', None)
+        if tags is not None:
+            tags = [x.strip() for x in tags.split(',')]
+            tags = [x for x in tags if x] or None
+            data['tags'] = tags
+        if data.get('delta', None) is not None:
+            if data.get('tags', None) is None:
+                data['delta'] = None
+        return data
+
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_POST
+@dcsrf.csrf_exempt              # FIXME
+def grade_comments(request, code, subcode, promo, login):
+    the    = get_assignment(request, code, subcode, promo)
+    user   = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    grades = models.HandInGrade.objects.filter(user = user, assignment = the)
+    grades = grades.first()
+
+    if grades is None:
+        raise http.Http404        
+    if grades.finalized:
+        return http.JsonResponse(dict(ok = False, jsc = None))
+
+    form = AddGradeCommentForm(request.POST)
+
+    if form.is_valid():
+        data  = form.cleaned_data
+        filec = models.HandInFile.objects.filter(
+            uuid               = data['uuid'],
+            handin__user       = user,
+            handin__index      = data['index'],
+            handin__assignment = the,
+        ).first()
+
+        if filec is not None:
+            comment = models.HandInGradeComment()
+            comment.grade      = grades
+            comment.author     = request.user
+            comment.comment    = data['comment']
+            comment.handinfile = filec
+            comment.handinloc  = data['lineno']
+            comment.tags       = data['tags']
+            comment.delta      = data['delta']
+
+            comment.save()
+
+            jsc = dict(
+                uuid      = comment.uuid,
+                author    = comment.author.fullname,
+                timestamp = comment.timestamp,
+                comment   = comment.comment,
+                lineno    = comment.handinloc,
+                tags      = comment.tags,
+                delta     = comment.delta,
+            )
+
+            return http.JsonResponse(dict(ok = True, jsc = jsc))
+
+    return http.JsonResponse(dict(ok = False, jsc = None))
+
+# --------------------------------------------------------------------
+class ModifyGradeCommentForm(forms.Form):
+    comment = forms.CharField(strip = True)
+    tags    = forms.CharField(required = False)
+    delta   = forms.IntegerField(min_value = -100, max_value = 100, required = False)
+
+    def clean(self):
+        data = self.cleaned_data
+        tags = data.get('tags', None)
+        if tags is not None:
+            tags = [x.strip() for x in tags.split(',')]
+            tags = [x for x in tags if x] or None
+            data['tags'] = tags
+        if data.get('delta', None) is not None:
+            if data.get('tags', None) is None:
+                data['delta'] = None
+        return data
+
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_POST
+@dcsrf.csrf_exempt              # FIXME
+def grade_comments_edit(request, code, subcode, promo, login, uuid):
+    the    = get_assignment(request, code, subcode, promo)
+    user   = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    grades = models.HandInGrade.objects.filter(user = user, assignment = the)
+    grades = grades.first()
+
+    if grades is None:
+        raise http.Http404        
+    if grades.finalized:
+        return http.JsonResponse(dict(ok = False, jsc = None))
+
+    comment = grades.comments.filter(uuid = uuid).first()
+
+    if comment is None:
         raise http.Http404
 
-    filec = handin.handin.files.filter(uuid = uuid).first()
+    if 'delete' in request.POST:
+        comment.delete()
+        return http.JsonResponse(dict(ok = True, jsc = None))
 
-    if filec is None:
-        raise http.Http404
+    form = ModifyGradeCommentForm(request.POST)
 
-    rep = http.FileResponse(filec.contents.open(), content_type = 'text/plain')
-    rep['Content-Disposition'] = 'inline'; return rep
+    if not form.is_valid():
+        return http.JsonResponse(dict(ok = False, jsc = None))
+
+    data = form.cleaned_data
+
+    comment.comment = data['comment']
+    comment.tags    = data['tags']
+    comment.delta   = data['delta']
+    comment.save()
+
+    return http.JsonResponse(dict(ok = True, jsc = dict(
+        uuid      = comment.uuid,
+        author    = comment.author.fullname,
+        timestamp = comment.timestamp,
+        comment   = comment.comment,
+        lineno    = comment.handinloc,
+        tags      = comment.tags,
+        delta     = comment.delta,
+    )))
 
 # --------------------------------------------------------------------
 @login_required
@@ -1528,8 +1766,9 @@ def grade_start(request, code, subcode, promo, login):
 
     with db.transaction.atomic():
         grquery = models.HandInGrade.objects.filter(user = user, assignment = the)
+        grquery = grquery.first()
 
-        if not grquery.exists():
+        if grquery is None:
             qsts = questions_of_contents(the.contents)
             hdns = []
 
@@ -1554,9 +1793,37 @@ def grade_start(request, code, subcode, promo, login):
                 hdng.index  = index
                 hdng.grade  = grading
                 hdng.save()
+        else:
+            grquery.finalized = False
+            grquery.save()
 
     if crt:
         messages.info(request, 'Grading started for %s' % (login,))
+    uargs = dict(code = code, subcode = subcode, promo = promo, login = login)
+    url = durls.reverse('upload:grade_view', kwargs = uargs)
+    return http.HttpResponseRedirect(url)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_POST
+def grade_end(request, code, subcode, promo, login):
+    the  = get_assignment(request, code, subcode, promo)
+    user = dutils.get_object_or_404(dauth.get_user_model(), pk = login)
+    crt  = False
+
+    with db.transaction.atomic():
+        grquery = models.HandInGrade.objects.filter(user = user, assignment = the)
+        grquery = grquery.first()
+
+        if grquery is None:
+            raise http.Http404
+
+        grquery.finalized = True
+        grquery.save()
+
+    if crt:
+        messages.info(request, 'Grading finalized for %s' % (login,))
     uargs = dict(code = code, subcode = subcode, promo = promo, login = login)
     url = durls.reverse('upload:grade_view', kwargs = uargs)
     return http.HttpResponseRedirect(url)
@@ -1703,3 +1970,32 @@ def recheck_uuid(request, uuid):
 def clean(request):
     aout = models.HandIn.objects.filter(~Q(user__cls = 'Etudiants')).delete()
     return http.HttpResponse(repr(aout), content_type = 'text/plain')
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def stats(request, code, subcode, promo):
+    the  = get_assignment(request, code, subcode, promo)
+    ctxt = dict(nav = _build_nav(request.user, the), the = the)
+    return dutils.render(request, 'stats.html', ctxt)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def autocomplete_users(request):
+    users, q = [], request.GET.get('q', '').strip()
+
+    if len(q) >= 2:
+        print(settings.AUTH_USER_MODEL)
+        users = User.objects \
+            .filter(login__contains = q) \
+            .values_list('login', 'firstname', 'lastname') \
+            .all()
+        users = [
+            dict(value = x[0], text = ' '.join(x[1:]))
+            for x in users
+        ]
+
+    return http.JsonResponse(users, safe = False)

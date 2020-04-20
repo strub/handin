@@ -100,16 +100,26 @@ urlpatterns = [
                 path(':artifacts/<int:index>/',
                      views.artifacts_myupload, name='myupload-art'),
             ])),
+
+#            path(':stats/', include([
+#                path('', views.stats, name='stats'),
+#                path(':data/', views.stats_data, name='stats_data'),
+#            ])),
         ])),
 
         path('grades/', include([
             path(':login/<login>/', include([
                 path('', views.grade_view, name='grade_view'),
 
-                path(':files/<int:index>/<uuid:uuid>/',
-                     views.grade_get_file, name='grade_get_file'),
+                path(':files/', views.grade_get_files, name='grade_get_files'),
+
+                path(':comments/', views.grade_comments, name='grade_comments'),
+
+                path(':comments/<uuid:uuid>/', views.grade_comments_edit, name='grade_comments_edit'),
 
                 path(':start/', views.grade_start, name='grade_start'),
+
+                path(':end/', views.grade_end, name='grade_end'),
             ])),
         ])),
 
@@ -138,4 +148,6 @@ urlpatterns = [
     ])),
 
     path('agns/:clean/', views.clean),
+
+    path(':autocomplete/:users/', views.autocomplete_users, name='ac_users'),
 ]

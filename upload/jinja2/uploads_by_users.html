@@ -1,5 +1,5 @@
 {% extends 'layout.html' %}
-{% import 'macros.html' as macros %}
+{% import 'macros.html' as macros with context %}
 
 {% block title %}Uploads{% endblock %}
 
@@ -70,14 +70,6 @@
     <td class="text-nowrap status px-3">
     {% if upload[q] %}
     {{ macros.upload_status(upload[q].0) }}
-    <div class="float-right">
-    <a target="_blank" href="{{ url('upload:download_login_index', the.code, the.subcode, the.promo, login, q) }}">
-      <i class="small olinks fa fa-download"></i>
-    </a>
-    <a target="_blank" href="{{ url('upload:upload_details_by_login_index', the.code, the.subcode, the.promo, login, q) }}">
-      <i class="small olinks fa fa-arrow-circle-right"></i>
-    </a>
-    </div>
     {% endif %}
     </td>
     {% endfor %}

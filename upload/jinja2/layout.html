@@ -23,6 +23,18 @@
     <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js"
             integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
 
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/clipboard.js/2.0.6/clipboard.min.js"
+            integrity="sha256-inc5kl9MA1hkeYUt+EC3BhlIgyp/2jDIyBLS6k3UxPI=" crossorigin="anonymous"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.24.0/moment.min.js"
+            integrity="sha256-4iQZ6BVL4qNKlQ27TExEhBN1HFPvAvAMbFavKKosSWQ=" crossorigin="anonymous"></script>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tempusdominus-bootstrap-4/5.1.2/js/tempusdominus-bootstrap-4.min.js"
+            integrity="sha256-z0oKYg6xiLq3yJGsp/LsY9XykbweQlHl42jHv2XTBz4=" crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/tempusdominus-bootstrap-4/5.1.2/css/tempusdominus-bootstrap-4.min.css"
+          integrity="sha256-XPTBwC3SBoWHSmKasAk01c08M6sIA5gF5+sRxqak2Qs=" crossorigin="anonymous" />
+
     {% block headendcontents %}{% endblock %}
 
     <link rel="stylesheet" href="{{ static('css/style.css') }}" />
@@ -66,13 +78,13 @@
               {% for code, asgns in nav.oasgn.1.items() %}
                 <div class="dropdown-divider"></div>
                 <h6 class="dropdown-header">{{ code }}</h6>
-                {% for asgn in asgns %}
+                {% for asgn in asgns %}{% if (asgn.code, asgn.promo) == (nav.inasgn.code, nav.inasgn.promo) %}
                 <a class="dropdown-item {{ 'active' if nav.inasgn.key == asgn.key else '' }}"
                    href="{{ url('upload:assignment', asgn.code, asgn.subcode, asgn.promo) }}">
                   <span class="fas fa-caret-right pr-2"></span>
                   {{ asgn.subcode }} - {{ asgn.promo }}
                 </a>
-                {% endfor %}
+                {% endif %}{% endfor %}
               {% endfor %}
               {% endif %}
               {% block nav %}{% endblock %}
@@ -265,6 +277,19 @@
         $("#top-alerts .alert").fadeTo(4000, 500).slideUp(500, function() {
           $("#top-alerts .alert").slideUp(500);
         });
+    });
+    </script>
+
+    <script type="text/javascript">
+    $(function() {
+      var clipboard = new ClipboardJS('.copy-button');
+      $('.copy-button').tooltip({ trigger: 'click', placement: 'top' });
+      clipboard.on('success', function(e) {
+        $(e.trigger).tooltip('hide')
+                    .attr('data-original-title', 'Copied')
+                    .tooltip('show');
+        window.setTimeout(function() { $(e.trigger).tooltip('hide'); }, 600);
+      });
     });
     </script>
 
