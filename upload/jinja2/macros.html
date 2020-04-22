@@ -120,15 +120,19 @@ fa {{ values.get(code, 'fa-question-circle') }}
       </div>
       <div id="upload-failing-collapse-{{ loop.index }}" class="card-collapse collapse">
         <div class="card-body">
+        {% if failing.0['description'] %}
+        <p><strong>Description</strong></p>
+        <pre class="code"><code>{{ failing.0['description'] }}</code></pre>
+        {% endif %}
+        {% if 'index' in failing.1['xinfos'] %}
         <p>
           <strong>Input</strong>
           - <button class="btn btn-outline-dark btn-sm copy-button"
                     data-clipboard-text="{{ failing.1['xinfos']['input'] }}">
               <span class="fas fa-clipboard"></span>
             </button>
+          <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
         </p>
-        <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
-        {% if 'index' in failing.1['xinfos'] %}
         <p><strong>Test #</strong></p>
         <pre class="code"><code>{{ failing.1['xinfos']['index'] }}</code></pre>
         {% endif %}

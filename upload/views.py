@@ -154,6 +154,10 @@ SCHEMA = dict(
                 required = ['pattern', 'destination'],
             ),
         ),
+        merge = dict(
+            type = 'object',
+            additionalProperties = dict(type = 'array', items = dict(type = 'string'))
+        ),
         resources = RSCHEMA,
         autocorrect = dict(
             type = 'object',
@@ -245,6 +249,12 @@ NO_SUBMIT      = '<div class="alert alert-danger">Upload form is only available 
 LATE_SUBMIT    = '<div class="alert alert-danger">Submissions are now closed</div>'
 LATE_OK_SUBMIT = '<div class="alert alert-danger">Your submission will be flagged as late</div>'
 LAST_SUBMIT    = '<div class="alert alert-info">Last submission: %s</div>'
+F_MERGE        = r'''
+<div class="alert alert-warning">
+  You will have access to the files you submitted to %s. (You do not need
+  to resubmit them or to copy their content in the submitted files)
+</div>
+'''
 
 # --------------------------------------------------------------------
 def questions_of_contents(contents):
@@ -315,6 +325,24 @@ def _defer_check_internal(uuid):
         hdn.status = 'no-test'; hdn.save()
         return
 
+    deps = the.properties.get('merge', {}).get(str(hdn.index), [])
+    deps = { int(x) for x in deps }
+
+    dhandins = distinct_on(
+        models.HandIn.objects \
+            .filter(user       = hdn.user,
+                    assignment = the,
+                    index__in  = deps,
+                    date__lt   = hdn.date) \
+            .order_by('-date').all(),
+        lambda x : x.index
+    )
+    dhandins = list(reversed(list(dhandins)))
+    tocopy   = []
+    totest   = []
+
+    for dhandin in dhandins:
+        tocopy.extend(models.HandInFile.objects.filter(handin = dhandin).all()[:])
     totest = models.HandInFile.objects.filter(handin = hdn).all()[:]
 
     if not totest:
@@ -346,6 +374,11 @@ def _defer_check_internal(uuid):
 
                         raise ValueError('insecure file-map')
 
+                    os.makedirs(os.path.dirname(outname), exist_ok = True)
+                    shutil.copy(filename.contents.path, outname)
+
+                for filename in tocopy:
+                    outname = os.path.join(srcdir, 'merge', filename.name)
                     os.makedirs(os.path.dirname(outname), exist_ok = True)
                     shutil.copy(filename.contents.path, outname)
 
@@ -1287,7 +1320,7 @@ def handin(request, code, subcode, promo, index):
                     continue
     
                 rmap.add(hdn.index)
-                for fle in hdn.handinfile_set.all():
+                for fle in hdn.files.all():
                     if fle.name in missing:
                         missing.remove(fle.name)
                         rlist.append((hdn, fle))
@@ -1423,6 +1456,9 @@ class Assignment(views.generic.TemplateView):
                 if reqs:
                     reqs  = utils.html.escape(', '.join(sorted(reqs)))
                     data += F_REQUIRED % (reqs,)
+                deps = the.properties.get('merge', {}).get(str(index), [])
+                if deps:
+                    data = F_MERGE % (', '.join('Q%s' % x for x in sorted(set(deps)))) + data
 
                 return data
 
@@ -1510,6 +1546,8 @@ class Assignment(views.generic.TemplateView):
                    tests      = [],
                    properties = dict(required = jso.get('required', dict()),
                                      map      = jso.get('map', [])))
+        if jso.get('merge', None):
+            dfl['properties']['merge'] = jso['merge']
 
         if acorrect is not None:
             dfl['tests'] = acorrect['forno']

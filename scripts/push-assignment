@@ -93,6 +93,21 @@ def validate_required(reqs):
         raise Error('invalid req-files list')
 
 # --------------------------------------------------------------------
+def validate_merge(merge):
+    try:
+        merge, aout = merge.split(), dict()
+        for m in merge:
+            if ':' not in m:
+                raise ValueError
+            from_, to_ = m.split(':', 1)
+            aout.setdefault(from_, set()).add(to_)
+        aout = { k: list(sorted(v)) for k, v in aout.items() }
+        return aout
+
+    except ValueError:
+        raise Error('invalid merge list')
+
+# --------------------------------------------------------------------
 def validate_map(maps):
     try:
         maps, aout = maps.split(), []
@@ -144,6 +159,7 @@ def read_options(filename):
         options.markdown    = config.get(ASECTION, 'markdown' )
         options.resources   = config.get(ASECTION, 'resources')
         options.required    = config.get(ASECTION, 'required' , fallback = '')
+        options.merge       = config.get(ASECTION, 'merge'    , fallback = '')
         options.map         = config.get(ASECTION, 'map'      , fallback = '')
         options.autocorrect = None
 
@@ -182,8 +198,12 @@ def _main():
         options.resources = validate_resources(options.resources, base)
         acorrect          = options.autocorrect
 
+        if options.merge:
+            options.merge = validate_merge(options.merge)
+
         if options.start is not None:
             options.start = validate_date(options.start)
+
         if options.end   is not None:
             options.end   = validate_date(options.end  )
 
@@ -215,6 +235,9 @@ def _main():
         if options.map:
             dta['map'] = options.map
 
+        if options.merge:
+            dta['merge'] = options.merge
+
         if acorrect is not None:
             dta['autocorrect'] = dict(
                 forno = acorrect.forno,
@@ -226,6 +249,7 @@ def _main():
                           promo   = ul.parse.quote(str(options.promo))))
 
         dta = json.dumps(dta).encode('utf-8')
+
         hdr = {
             'Content-Type': 'application/json; charset=utf-8',
             'X-Secret': secret,

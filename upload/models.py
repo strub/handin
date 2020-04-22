@@ -202,7 +202,9 @@ class HandIn(models.Model):
         for testv in self.xstatus:
             if testv['result'] is None or testv['result']['status'] == 'success':
                 continue
-            aout.append(({ x: testv[x] for x in ('name', 'timeout') }, testv['result']))
+            aout.append(({ x: testv[x] for x in
+                           ('name', 'timeout', 'description') },
+                         testv['result']))
         return aout
 
 # --------------------------------------------------------------------
