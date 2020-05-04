@@ -3,6 +3,23 @@
 
 {% block title %}My uploads{% endblock %}
 
+{% block headendcontents %}
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/styles/github.min.css"
+      integrity="sha384-snvkDYLVttT3SBWz8WVvdGfmManlusUoAT3Agqco/8yBV7/tlflWJCUmP2O9f9wF" crossorigin="anonymous">
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/9.15.6/highlight.min.js"
+        integrity="sha384-CWWTkjyKvLwc1j/u6LmdJiGCWFkQtH9MxBpmgzrFFwMhF5qM2u/FzXrhV3nUfs0l" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlightjs-line-numbers.js/2.7.0/highlightjs-line-numbers.min.js"
+        integrity="sha256-3f4oLge37B7QacI/ksfIIW3bPxh5xOli03/VKtvRWgU=" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/showdown/1.9.1/showdown.min.js"
+        integrity="sha256-jl1+DOsSs9uABTKppOJ2GF8kXoc3XQzBtFFyS0i9Xoo=" crossorigin="anonymous"></script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery.loadtemplate/1.5.10/jquery.loadTemplate.min.js"
+        integrity="sha256-mF3k3rmuuGVi/6GhJ5atwMd7JsTsQhULB6GyLaFPrMU=" crossorigin="anonymous"></script>
+{% endblock %}
+
 {% block contents %}
 <h2>My uploads - {{ the.code }} / {{ the.subcode }} ({{ the.promo }})</h2>
 
@@ -48,4 +65,99 @@
 {% endfor %}
 </tbody>
 </table>
+
+{% if grade %}
+{% for handin in grade.handins.all() %}
+{% for file in handin.handin.files.all() %}
+<div class="card hl" id="{{ file.uuid }}">
+  <div class="card-header">
+    <strong>{{ file.name }}</strong>
+    - (Pb. {{ handin.handin.index }})
+  </div>
+  <div class="card-body m-0 p-0">
+    <pre><code>{{ file.contents.read().decode('utf-8', errors='surrogateescape') }}</code></pre>
+  </div>
+</div>
+{% endfor %}
+{% endfor %}
+
+<script type="text/html" id="tmpl-comment">
+<div class="card comment">
+  <div class="card-header">
+    <strong><span data-content="author"></span></strong>
+    commented on <span data-content="date" data-format="DateFormatter"></span>
+    </strong>
+  </div>
+  <div class="card-body">
+    <span data-content="contents" data-format="MarkdownFormatter"></span>
+  </div>
+</div>
+</script>
+
+<script type="text/javascript">
+$.addTemplateFormatter({
+    DateFormatter: function(value, template) {
+        return moment(Date.parse(value)).format('DD-MM-YYYY HH:mm:ss A');
+    },
+    MarkdownFormatter: function(value, template) {
+        var converter = new showdown.Converter();
+        return converter.makeHtml(value);
+    },
+});
+</script>
+
+<script type="text/javascript">
+$('.hl code').each(function (i, code) {
+  hljs.highlightBlock(code);
+  hljs.lineNumbersBlock(code);
+});
+
+function push_comment(comment) {
+    var id = comment.file_uuid + '-' + comment.lineno;
+
+    var div = $('#' + id)[0];
+
+    if (div == undefined) {
+        div = $('<div>', { id: id, style: 'white-space: normal' });
+        tr  = $('<tr>', { class: 'reset-font' });
+        tr.append($('<td>', { colspan: 2 }).append(div));
+        var tg = "td.hljs-ln-code[data-line-number='" + (comment.lineno+1) + "']";
+        $('#' + comment.file_uuid).find(tg).closest('tr').after(tr).first();
+    }
+
+    var cdiv = $(div).find("div[data-uuid='" + comment.uuid + "']");
+
+    if (cdiv.length == 0) {
+        cdiv = $('<div>', { 'data-uuid': comment.uuid });
+        $(div).append(cdiv);
+    }
+
+    $(cdiv).loadTemplate($('#tmpl-comment'), {
+        author   : comment.author,
+        date     : comment.timestamp,
+        contents : comment.comment,
+    });
+};
+
+var comments = [
+{% for comment in grade.comments.all() %}
+  {
+    uuid      : '{{ comment.uuid }}',
+    file_uuid : '{{ comment.handinfile.uuid }}',
+    timestamp : new Date('{{ comment.timestamp.isoformat() }}'),
+    author    : '{{ comment.author.fullname }}',
+    lineno    : parseInt('{{ comment.handinloc }}'),
+    comment   : '{{ comment.comment }}',
+  },
+{% endfor %}
+];
+
+window.setTimeout(function () {
+    $(comments).each(function (sidx, comment) {
+        push_comment(comment);
+    });
+}, 0);
+</script>
+{% endif %}
+
 {% endblock %}

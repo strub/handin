@@ -8,6 +8,7 @@ import django.views.defaults, django.views.static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('upload.urls')),
+    path(':impersonate/', include('impersonate.urls')),
 ]
 
 if settings.DEBUG:

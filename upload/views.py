@@ -205,7 +205,7 @@ FORM = r'''
     <div class="input-group">
       <div class="form-check">
         <input type="checkbox" class="form-check-input"
-               name="files-reuse" value="1">
+               name="files-reuse" value="1" checked="checked">
         <label class="form-check-label" for="files-reuse">
           Reuse files from previous submissions
           <span class="far fa-question-circle" data-toggle="tooltip"
@@ -216,11 +216,9 @@ FORM = r'''
     %%(admin)s
   </div>
 </form>
-''' % (' '.join([
-    'Missing required files are taken from (in order):',
-    'last submission of this question,',
-    'last submissions from previous questions (from last to first)',
-  ]))
+''' % (
+  'Missing required files are taken from last submission of this question.',
+)
 
 FORM_ADMIN = r'''
     <div class="form-group pt-3">
@@ -252,7 +250,10 @@ LAST_SUBMIT    = '<div class="alert alert-info">Last submission: %s</div>'
 F_MERGE        = r'''
 <div class="alert alert-warning">
   You will have access to the files you submitted to %s. (You do not need
-  to resubmit them or to copy their content in the submitted files)
+  to resubmit them or to copy their content in the submitted files).
+
+  If you submit files that belong to these previous questions, they will
+  be propagated up and the automated tests will be triggered.
 </div>
 '''
 
@@ -325,15 +326,12 @@ def _defer_check_internal(uuid):
         hdn.status = 'no-test'; hdn.save()
         return
 
-    deps = the.properties.get('merge', {}).get(str(hdn.index), [])
-    deps = { int(x) for x in deps }
-
     dhandins = distinct_on(
         models.HandIn.objects \
             .filter(user       = hdn.user,
                     assignment = the,
-                    index__in  = deps,
-                    date__lt   = hdn.date) \
+                    index__in  = the.merges().get(hdn.index, []),
+                    date__lte  = hdn.date) \
             .order_by('-date').all(),
         lambda x : x.index
     )
@@ -380,7 +378,8 @@ def _defer_check_internal(uuid):
                 for filename in tocopy:
                     outname = os.path.join(srcdir, 'merge', filename.name)
                     os.makedirs(os.path.dirname(outname), exist_ok = True)
-                    shutil.copy(filename.contents.path, outname)
+                    if not os.path.exists(outname):
+                        shutil.copy(filename.contents.path, outname)
 
                 for filename in extra:
                     shutil.copy(filename.contents.path,
@@ -418,7 +417,7 @@ def _defer_check_internal(uuid):
                 )
     
                 command = [
-                    'timeout', '--preserve-status', '--signal=KILL', '180',
+                    'timeout', '--preserve-status', '--signal=KILL', '240',
                     '/opt/handin/bin/python3',
                     '/opt/handin/user/scripts/achecker-%s-%d.py' % (hdn.assignment.code, hdn.assignment.promo),
                     '/opt/handin/user', str(hdn.assignment.subcode), str(hdn.index)
@@ -687,22 +686,29 @@ def uploads_by_users(request, code, subcode, promo):
         nt  = namedtuple('Group', [c[0] for c in cursor.description])
         grp = [nt(*x) for x in cursor.fetchall()]
 
+    grades = models.HandInGrade.objects \
+                               .filter(assignment = the) \
+                               .select_related('user') \
+                               .all()
+    grades = { x.user.login: x for x in grades }
+
     groups  = dict()
+    users   = dict()
+    uploads = dict()
 
     for entry in grp:
         groups.setdefault(entry.login, set()) \
               .add(int(entry.gname[len(gname)+1:]))
     groups = { k: min(v) for k, v in groups.items() }
 
-    users   = dict()
-    uploads = dict()
-
     for x in hdn:
         if the.end is not None and x.date.replace(tzinfo=None).date() >= the.end:
             x = x._replace(late = True)
 
         if x.login not in users:
-            users[x.login] = (x.login, x.fullname)
+            ugrade = grades.get(x.login, None)
+            ugrade = 'none' if ugrade is None else ('done' if ugrade.finalized else 'started')
+            users[x.login] = (x.login, x.fullname, ugrade)
 
         ugroup = groups.get(x.login, None)
         gdict  = uploads.setdefault(ugroup, dict())
@@ -712,7 +718,7 @@ def uploads_by_users(request, code, subcode, promo):
         gdict[x.login].setdefault(x.idx, []).append(x)
 
     context = dict(
-        the    = the, qst = qst, uploads = uploads, users = users,
+        the    = the, qst = qst, uploads = uploads, users = users, grades = grades,
         groups = sorted(uploads.keys(), key = \
                             lambda x : math.inf if x is None else x),
         nav    = _build_nav(request.user, the))
@@ -854,7 +860,16 @@ def myuploads(request, code, subcode, promo):
 
     for q in qst: rqs.setdefault(q, None)
 
-    ctx = dict(the = the, rqs = rqs, qst = qst,
+    grade = models.HandInGrade.objects \
+                  .filter(assignment = the, user = request.user) \
+                  .prefetch_related('comments', 'handins', 'handins__handin', 'handins__handin__files') \
+                  .first()
+
+    if grade is not None:
+        if not grade.finalized:
+            grade = None
+
+    ctx = dict(the = the, rqs = rqs, qst = qst, grade = grade,
                nav = _build_nav(request.user, the))
     # ctx['refresh'] = REFRESH
 
@@ -1301,80 +1316,110 @@ def handin(request, code, subcode, promo, index):
 #                (MINDELTA - diffd.total_seconds()))
 #        return dutils.redirect(url)
 
-    reuse   = request.POST.get('files-reuse', '').lower() in BOOL
-    rmap    = set()
-    rlist   = []
-    missing = reqs.difference([x.name for x in files])
+    reuse  = request.POST.get('files-reuse', '').lower() in BOOL
+    submit = {}
 
-    if missing and reuse:
-        try:
-            for hdn in models.HandIn.objects \
-                             .filter(assignment = the,
-                                     user = user,
-                                     index__lte = index) \
-                             .defer('log', 'artifact') \
-                             .order_by('-index', '-date') \
-                             .all():
-    
-                if hdn.index in rmap:
-                    continue
-    
-                rmap.add(hdn.index)
-                for fle in hdn.files.all():
-                    if fle.name in missing:
-                        missing.remove(fle.name)
-                        rlist.append((hdn, fle))
-                    if not missing:
-                        raise StopIteration
+    submit[index] = dict(files = { x.name: x for x in files })
+    del files                   # avoid using this one later
 
-        except StopIteration:
-            pass
+    merge = list(reversed(sorted(the.merges().get(index, []))))
+
+    for merge1 in merge:
+        if merge1 >= index:
+            continue
+        for mreq in the.required(merge1):
+            if mreq not in submit[index]['files']:
+                continue
+            if merge1 not in submit:
+                submit[merge1] = dict(files = {})
+            submit[merge1]['files'][mreq] = submit[index]['files'][mreq]
+            del submit[index]['files'][mreq]
+
+    for merge1, submit1 in submit.items():
+        submit1['missing'] = \
+            the.required(merge1).difference(submit1['files'].keys())
+        submit1['rlist'] = []
+
+        if not submit1['missing'] or not reuse:
+            continue
+
+        reusehd = models.HandIn.objects \
+            .filter(assignment = the, user = user, index = merge1) \
+            .defer('log', 'xstatus', 'xinfos', 'artifact') \
+            .order_by('-date') \
+            .first()
+
+        if reusehd is None:
+            continue
+
+        for fle in reusehd.files.all():
+            if fle.name in submit1['missing']:
+                submit1['missing'].remove(fle.name)
+                submit1['rlist'].append((reusehd, fle))
+
+    missing = list(sorted([
+        (merge1, x)
+            for merge1, submit1 in submit.items()
+            for x in submit1['missing']
+    ], key = lambda v : (-v[0], v[1])))
 
     if missing:
+        missing = [f'{name} (Pb.{i})' for i, name in missing]
         messages.error(request,
-            'The following files are missing: ' +
-            ', '.join(sorted(missing)))
+            'The following files are missing: ' + ', '.join(sorted(missing)))
         return dutils.redirect(url)
 
+    handins = []
+
     with db.transaction.atomic():
-        handin = models.HandIn(
-            user       = user,
-            assignment = the,
-            index      = index,
-            date       = subdate,
-        )
-        print(handin.date)
-        handin.save()
+        for merge1 in reversed(sorted(submit.keys())):
+            submit1 = submit[merge1]
 
-        for stream in files:
-            data = b''.join(stream.chunks()) # FIXME
-            recd = models.HandInFile(
-                handin   = handin,
-                name     = stream.name,
+            handin = models.HandIn(
+                user       = user,
+                assignment = the,
+                index      = merge1,
+                date       = subdate,
             )
-            recd.contents.save(stream.name, ContentFile(data))
-            recd.save()
-
-        for _, rfile in rlist:
-            with open(rfile.contents.path, 'rb') as rfilefd:
+            handin.save()
+    
+            for stream in submit1['files'].values():
+                data = b''.join(stream.chunks()) # FIXME
                 recd = models.HandInFile(
-                    handin = handin,
-                    name   = rfile.name,
+                    handin   = handin,
+                    name     = stream.name,
                 )
-                recd.contents.save(rfile.name, File(rfilefd))
+                recd.contents.save(stream.name, ContentFile(data))
                 recd.save()
+    
+            for _, rfile in submit1['rlist']:
+                with open(rfile.contents.path, 'rb') as rfilefd:
+                    recd = models.HandInFile(
+                        handin = handin,
+                        name   = rfile.name,
+                    )
+                    recd.contents.save(rfile.name, File(rfilefd))
+                    recd.save()
 
-    _defer_check(handin, update = False)
+            handins.append(handin)
+
+    for i, handin in enumerate(handins):
+        _defer_check(handin, update = (i == 0))
 
     messages.info(request,
         'Your files for question %d have been submitted' % (index,))
 
-    if rlist:
-        rlv = { k.name : v for v, k in rlist }
-        rlv = [(k, rlv[k]) for k in sorted(rlv.keys())]
+    if len(submit) > 1:
+        others = list(sorted(set(submit.keys()).difference({ index })))
+        messages.info(request,
+            'Some files have been propagated to the following questions: ' +
+            ', '.join(map(str, others)))
+
+    if submit[index]['rlist']:
+        rlv = list(sorted({ k[1].name for k in submit[index]['rlist'] }))
         messages.info(request,
             'The following files have been copied from your previous submissions: ' + \
-            ', '.join(['%s (Q%d)' % (k, v.index) for k, v in rlv]))
+            ', '.join(rlv))
 
     return dutils.redirect(url)
 
@@ -1456,9 +1501,9 @@ class Assignment(views.generic.TemplateView):
                 if reqs:
                     reqs  = utils.html.escape(', '.join(sorted(reqs)))
                     data += F_REQUIRED % (reqs,)
-                deps = the.properties.get('merge', {}).get(str(index), [])
+                deps = the.merges().get(index, [])
                 if deps:
-                    data = F_MERGE % (', '.join('Q%s' % x for x in sorted(set(deps)))) + data
+                    data = F_MERGE % (', '.join('Pb.%d' % x for x in sorted(set(deps)))) + data
 
                 return data
 

@@ -119,6 +119,10 @@ class Assignment(models.Model):
                 return os.path.join(*(destination.split('/') + [filename]))
         return filename
 
+    def merges(self):
+        deps = self.properties.get('merge', {})
+        return { int(k): map(int, v) for k, v in deps.items() }
+
     def __str__(self):
         return '%s (%s) - %s' % (self.code, self.promo, self.subcode)
 
@@ -202,7 +206,7 @@ class HandIn(models.Model):
         for testv in self.xstatus:
             if testv['result'] is None or testv['result']['status'] == 'success':
                 continue
-            aout.append(({ x: testv[x] for x in
+            aout.append(({ x: testv.get(x, None) for x in
                            ('name', 'timeout', 'description') },
                          testv['result']))
         return aout

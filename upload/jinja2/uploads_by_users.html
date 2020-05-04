@@ -40,6 +40,16 @@
   </h4>
 </div>
 
+<style type="text/css">
+  tr.grading-done > td:first-child {
+    text-decoration: line-through;
+  }
+
+  tr.grading-started > td:first-child {
+    font-weight: bold;
+  }
+</style>
+
 <div id="collapse-{{ group }}" class="card-collapse collapse" data-parent="#accordion">
 <div class="card-body">
 
@@ -56,7 +66,7 @@
 {% for login in guploads.keys()|sort %}
 {% set user   = users[login] %}
 {% set upload = guploads[login] %}
-  <tr>
+  <tr class="grading-{{ user.2 }}">
     <td>
       {{ user.1 | truncate(20, True) }}
       <a href="{{ url('upload:uploads_by_login', the.code, the.subcode, the.promo, login) }}">

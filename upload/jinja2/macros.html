@@ -48,7 +48,7 @@ fa {{ values.get(code, 'fa-question-circle') }}
 {% macro substatustxt(code) -%}
 {% set values = {
      'success'           : 'success',
-     'compilation-error ': 'compilation error / invalid syntax',
+     'compilation-error' : 'compilation error / invalid syntax',
      'runtime-error'     : 'runtime error',
      'invalid-output'    : 'invalid result',
      'timeout'           : 'timeout',
@@ -123,6 +123,10 @@ fa {{ values.get(code, 'fa-question-circle') }}
         {% if failing.0['description'] %}
         <p><strong>Description</strong></p>
         <pre class="code"><code>{{ failing.0['description'] }}</code></pre>
+        {% endif %}
+        {% if 'message' in failing.1['xinfos'] %}
+        <p><strong>Message</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['message'] }}</code></pre>
         {% endif %}
         {% if 'index' in failing.1['xinfos'] %}
         <p>

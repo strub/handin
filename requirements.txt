@@ -3,6 +3,8 @@ django
 django-background-tasks
 django-cleanup
 django-debug-toolbar
+django-impersonate
+django-maintenancemode
 docker
 humanfriendly
 jinja2

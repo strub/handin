@@ -28,6 +28,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'django_cleanup.apps.CleanupConfig',
     'background_task',
+    'impersonate',
+    'maintenancemode',
 ]
 
 MIDDLEWARE = [
@@ -36,12 +38,18 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    'maintenancemode.middleware.MaintenanceModeMiddleware',
+    'impersonate.middleware.ImpersonateMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
     'handin.middleware.RedirectMiddleware',
 ]
 
 ROOT_URLCONF = 'handin.urls'
+
+# --------------------------------------------------------------------
+# Maintenance mode
+MAINTENANCE_MODE = False
 
 # --------------------------------------------------------------------
 # Templates 
@@ -81,8 +89,9 @@ AUTHENTICATION_BACKENDS = (
     'handin.auth.XLDAPBackend',
 )
 
-AUTH_USER_MODEL = 'handin.User'
-LOGIN_URL       = 'upload:login'
+AUTH_USER_MODEL    = 'handin.User'
+LOGIN_URL          = 'upload:login'
+LOGIN_REDIRECT_URL = 'upload:assignments'
 
 # --------------------------------------------------------------------
 # Internationalization
