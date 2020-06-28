@@ -124,11 +124,9 @@ fa {{ values.get(code, 'fa-question-circle') }}
         <p><strong>Description</strong></p>
         <pre class="code"><code>{{ failing.0['description'] }}</code></pre>
         {% endif %}
-        {% if 'message' in failing.1['xinfos'] %}
-        <p><strong>Message</strong></p>
-        <pre class="code"><code>{{ failing.1['xinfos']['message'] }}</code></pre>
-        {% endif %}
         {% if 'index' in failing.1['xinfos'] %}
+        <p><strong>Test #</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['index'] }}</code></pre>
         <p>
           <strong>Input</strong>
           - <button class="btn btn-outline-dark btn-sm copy-button"
@@ -137,12 +135,22 @@ fa {{ values.get(code, 'fa-question-circle') }}
             </button>
           <pre class="code"><code>{{ failing.1['xinfos']['input'] }}</code></pre>
         </p>
-        <p><strong>Test #</strong></p>
-        <pre class="code"><code>{{ failing.1['xinfos']['index'] }}</code></pre>
+        {% endif %}
+        {% if 'txt-expected' in failing.1['xinfos'] %}
+        <p><strong>Expected behaviour</strong></p>
+        <pre class="code pre-scrollable" style="max-height: 100ex;"><code>{{ failing.1['xinfos']['txt-expected'] }}</code></pre>
         {% endif %}
         {% if 'expected-output' in failing.1['xinfos'] %}
         <p><strong>Expected output</strong></p>
         <pre class="code"><code>{{ failing.1['xinfos']['expected-output'] }}</code></pre>
+        {% endif %}
+        {% if 'message' in failing.1['xinfos'] %}
+        <p><strong>Message</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['message'] }}</code></pre>
+        {% endif %}
+        {% if 'output' in failing.1['xinfos'] %}
+        <p><strong>Your program output</strong></p>
+        <pre class="code"><code>{{ failing.1['xinfos']['output'] }}</code></pre>
         {% endif %}
         {% if failing.1['status'] == 'timeout' %}
         <p><strong>Timeout</strong></p>
@@ -150,8 +158,9 @@ fa {{ values.get(code, 'fa-question-circle') }}
         {% endif %}
         {% if 'backtrace' in failing.1['xinfos'] %}
         <p><strong>Backtrace</strong></p>
-        <pre class="code pre-scrollable"><code>{{ failing.1['xinfos']['backtrace'] }}</code></pre>
+        <pre class="code pre-scrollable" style="max-height: 100ex;"><code>{{ failing.1['xinfos']['backtrace'] }}</code></pre>
         {% endif %}
+
         </div>
       </div>
     </div>

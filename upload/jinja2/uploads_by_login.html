@@ -35,19 +35,19 @@
 <table class="table table-striped uploads">
 <thead>
   <tr>
-    <th>Question</th>
-    <th>Upload timestamp</th>
-    <th>Status</th>
+    <th class="text-nowrap">Question</th>
+    <th class="text-nowrap">Upload timestamp</th>
+    <th class="text-nowrap">Status</th>
   </tr>
 </thead>
 <tbody>
 {% for q in qst %}
   <tr>
-    <td>{{ q }}</td>
+    <td class="text-nowrap">{{ q }}</td>
     {% if rqs[q] %}
-    <td>{{ date(rqs[q].date) }}</td>
+    <td class="text-nowrap">{{ date(rqs[q].date) }}</td>
     <td>{{ macros.upload_status(rqs[q]) }}</span></td>
-    <td class="text-center">
+    <td class="text-nowrap text-center">
       <a href="#" onclick="display_resources({{ q }}, '{{ rqs[q].uuid }}'); return false;">
         <span class="far fa-eye"></span>
       </a>
@@ -61,7 +61,7 @@
       </a>
     </td>
     {% else %}
-    <td>No submission</td>
+    <td class="text-nowrap">No submission</td>
     <td>-</td>
     <td></td>
     {% endif %}

@@ -778,7 +778,7 @@ def uploads_by_submissions(request, code, subcode, promo):
                            .select_related('user', 'assignment') \
                            .filter(assignment = the) \
                            .order_by('-date') \
-                           .defer('log', 'artifact') \
+                           .defer('log', 'artifact', 'xstatus') \
                            .all()
     uploads = paginator.Paginator(uploads, 100).get_page(request.GET.get('page'))
 
@@ -1482,7 +1482,7 @@ class Assignment(views.generic.TemplateView):
         def upload_match(handins):
             def doit(match):
                 index = int(match.group(1))
-                data  = '<div id="submit-%d"></div>' % (index,)
+                data  = '<span id="submit-%d"></span>' % (index,)
 
                 if late:
                     data += LATE_OK_SUBMIT
@@ -1650,6 +1650,23 @@ def grade_view(request, code, subcode, promo, login):
     ctxt = dict(grades = grades, the = the, user = user,
                 qst = sorted(qst), nav = _build_nav(request.user, the))
     return dutils.render(request, 'grade_view.html', ctxt)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def grade_finalize_all(request, code, subcode, promo):
+    the = get_assignment(request, code, subcode, promo)
+
+    models.HandInGrade.objects \
+                      .filter(assignment = the) \
+                      .update(finalized = True)
+
+    messages.info(request, 'All grades have been marked as finalized')
+
+    uargs = dict(code = code, subcode = subcode, promo = promo)
+    url = durls.reverse('upload:uploads_by_users', kwargs = uargs)
+    return http.HttpResponseRedirect(url)
 
 # --------------------------------------------------------------------
 @login_required
@@ -1921,6 +1938,8 @@ def recheck(request, code, subcode, promo):
 
     handins = models.HandIn.objects \
                     .select_related('assignment', 'user') \
+                    .defer('log', 'xstatus', 'artifact', 'assignment__contents',
+                           'assignment__properties', 'assignment__tests') \
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
@@ -1948,6 +1967,8 @@ def recheck_user(request, code, subcode, promo, login):
         for handin in \
             models.HandIn.objects \
                     .select_related('assignment', 'user') \
+                    .defer('log', 'xstatus', 'artifact', 'assignment__contents',
+                           'assignment__properties', 'assignment__tests') \
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
@@ -1983,6 +2004,8 @@ def recheck_index(request, code, subcode, promo, index):
         for handin in \
             models.HandIn.objects \
                     .select_related('assignment', 'user') \
+                    .defer('log', 'xstatus', 'artifact', 'assignment__contents',
+                           'assignment__properties', 'assignment__tests') \
                     .filter(assignment__code = code, \
                             assignment__subcode = subcode, \
                             assignment__promo = promo) \
@@ -2014,6 +2037,8 @@ def recheck_user_index(request, code, subcode, promo, login, index):
 
     handins = models.HandIn.objects \
                           .select_related('assignment', 'user') \
+                          .defer('log', 'xstatus', 'artifact', 'assignment__contents',
+                                 'assignment__properties', 'assignment__tests') \
                           .filter(assignment__code = code, \
                                   assignment__subcode = subcode, \
                                   assignment__promo = promo) \

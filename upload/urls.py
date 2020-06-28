@@ -121,6 +121,8 @@ urlpatterns = [
 
                 path(':end/', views.grade_end, name='grade_end'),
             ])),
+
+            path(':finalize/', views.grade_finalize_all, name='grade_finalize_all'),
         ])),
 
         path('resources/<path:name>', views.resource, name='resource'),

@@ -16,6 +16,13 @@
   </a>
 </div>
 
+<div class="py-2">
+  <a role="button" class="btn btn-outline-primary btn-lg btn-block"
+     target="_blank" href="{{ url('upload:grade_finalize_all', the.code, the.subcode, the.promo) }}">
+    Finalize all grades
+  </a>
+</div>
+
 <p>
 {% for c in macros.allstatus -%}
 <span class="{{ macros.status(c) }}"></span> {{ macros.statustxt(c) }}
@@ -67,7 +74,7 @@
 {% set user   = users[login] %}
 {% set upload = guploads[login] %}
   <tr class="grading-{{ user.2 }}">
-    <td>
+    <td class="text-nowrap">
       {{ user.1 | truncate(20, True) }}
       <a href="{{ url('upload:uploads_by_login', the.code, the.subcode, the.promo, login) }}">
         <span class="fa fa-arrow-circle-right"></span>
@@ -77,13 +84,13 @@
       </a>
     </td>
     {% for q in qst %}
-    <td class="text-nowrap status px-3">
+    <td class="status px-3">
     {% if upload[q] %}
     {{ macros.upload_status(upload[q].0) }}
     {% endif %}
     </td>
     {% endfor %}
-    <td style="border-left: 1px solid black;">
+    <td class="text-nowrap" style="border-left: 1px solid black;">
       <div class="px-2">
         <a target="_blank" href="{{ url('upload:download_login', the.code, the.subcode, the.promo, login) }}">
           <span class="fa fa-cloud-download-alt"><span>

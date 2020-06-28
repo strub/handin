@@ -47,11 +47,15 @@ def validate_date(date):
     return dt.datetime.strptime(date, '%Y-%m-%d').date()
 
 # --------------------------------------------------------------------
+TRUE  = [ 'true', '1', 't', 'y', 'yes']
+FALSE = ['false', '0', 'f', 'n', 'no']
+BOOL  = { **{ x: True for x in TRUE }, **{ x: False for x in FALSE } }
+
 def validate_bool(x):
-    try:
-        return bool(x)
-    except ValueError:
+    value = BOOL.get(x.lower(), None)
+    if x is None:
         raise Error('invalid flag: %s' % (x,))
+    return value
 
 # --------------------------------------------------------------------
 def validate_resources(resources, base):
