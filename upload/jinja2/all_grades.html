@@ -1,0 +1,28 @@
+{% extends 'layout.html' %}
+{% import 'macros.html' as macros with context %}
+
+{% block title %}All grades{% endblock %}
+
+{% block contents %}
+<h2>All grades ({{ users|length }} student(s))</h2>
+
+<table class="table table-striped uploads">
+<thead>
+  <tr>
+    <th>Student</th>
+{% for assgn in assgns %}
+    <th>{{ assgn.subcode }}</th>
+{% endfor %}
+  </tr>
+</thead>
+<tbody>
+{% for user in users %}
+  <tr>
+    <td>{{ user.fullname }}</td>
+{% for assgn in assgns %}
+    <td> - </td>
+{% endfor %}
+  </tr>
+{% endfor %}
+</tbody>
+{% endblock %}
