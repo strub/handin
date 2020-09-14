@@ -1615,6 +1615,23 @@ class Assignment(views.generic.TemplateView):
         return http.HttpResponse("OK\r\n", content_type = 'text/plain')
 
 # --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def delete_assignment(request, code, subcode, promo):
+    get_assignment(request, code, subcode, promo).delete()
+    return http.HttpResponse("OK\r\n", content_type = 'text/plain')
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def delete_all_assignments(request, code, promo):
+    for the in models.Assignment.objects.filter(code = code, promo = promo).all():
+        the.delete()
+    return http.HttpResponse("OK\r\n", content_type = 'text/plain')
+
+# --------------------------------------------------------------------
 @dhttp.require_GET
 def resource(request, code, subcode, promo, name):
     the = get_assignment(request, code, subcode, promo)
@@ -2107,3 +2124,138 @@ def autocomplete_users(request):
         ]
 
     return http.JsonResponse(users, safe = False)
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def summary(request, code, promo):
+    assignments = \
+        models.Assignment.objects \
+            .filter(code = code, promo = promo) \
+            .order_by('subcode') \
+            .all()[:]
+
+    users = \
+        dauth.get_user_model().objects \
+            .filter(handin__assignment__in = assignments) \
+            .order_by('login') \
+            .distinct().all()[:]
+
+    summary = {}
+
+    for assignment in assignments:
+        handins = { x.login : {} for x in users }
+
+        for handin in models.HandIn.objects \
+                         .filter(assignment = assignment) \
+                         .select_related('user') \
+                         .order_by('-date').all():
+
+            if handin.index not in handins[handin.user.login]:
+                handins[handin.user.login][handin.index] = handin
+
+        questions = {}
+
+        for uhandin in handins.values():
+            for handin in uhandin.values():
+                if handin.index not in questions:
+                    questions[handin.index] = None
+                xstatus = handin.compute_xinfos()
+                if xstatus is not None and len(xstatus) > 0:
+                    if questions[handin.index] is None:
+                        questions[handin.index] = []
+                    questions[handin.index] = questions[handin.index] + \
+                        [x[0] for x in xstatus if x[0] not in questions[handin.index]]
+
+        summary[assignment.subcode] = { x.login : {} for x in users }
+
+        for login, uinfo in summary[assignment.subcode].items():
+            for index, question in questions.items():
+                handin = handins[login].get(index, None)
+
+                if question is None:
+                    uinfo[index] = \
+                        handin is not None and handin.status in ('success', 'no-test')
+                else:
+                    xstatus = [] if handin is None else handin.compute_xinfos()
+                    xstatus = [] if xstatus is None else xstatus
+                    xstatus = { k: v for k, v in xstatus }
+
+                    for subindex in question:
+                        uinfo['{}/{}'.format(index, subindex)] = \
+                            xstatus.get(subindex) in ('success', 'no-test')
+                        
+        summary[assignment.subcode][None] = questions
+
+    import xlsxwriter, tempfile
+
+    with tempfile.NamedTemporaryFile(
+        prefix = '{}-{}'.format(code, promo),
+        suffix = '.xlsx') as output:
+        
+        workbook = xlsxwriter.Workbook(output.name)
+        bold     = workbook.add_format(dict(bold = True, bg_color = '#CCCCCC'))
+        fko      = workbook.add_format({'bg_color'   : '#FFC7CE',
+                                        'font_color' : '#9C0006'})
+        fok      = workbook.add_format({'bg_color'   : '#C6EFCE',
+                                        'font_color' : '#006100'})
+
+        for assignment in assignments:
+            questions = summary[assignment.subcode][None]
+            worksheet = workbook.add_worksheet(assignment.subcode)
+    
+            worksheet.set_column(0, 0, 30)
+
+            column = 1
+    
+            for index in sorted(questions.keys()):
+                question = questions[index]
+    
+                if question is None:
+                    worksheet.write(0, column, index, bold)
+                    column += 1
+                else:
+                    for subindex in question:
+                        worksheet.write(0, column, '{}/{}'.format(index, subindex), bold)
+                        column += 1
+    
+            for i, user in enumerate(users):
+                worksheet.write(i+1, 0, user.login, bold)
+    
+                column, uinfo = 1, summary[assignment.subcode][user.login]
+    
+                for index in sorted(questions.keys()):
+                    question = questions[index]
+    
+                    if question is None:
+                        worksheet.write(i+1, column, uinfo[index])
+                        column += 1
+                    else:
+                        for subindex in question:
+                            worksheet.write(i+1, column, uinfo['{}/{}'.format(index, subindex)])
+                            column += 1
+    
+            worksheet.conditional_format(
+                1, 1, len(users), column-1,
+                {'type'     : 'cell'    ,
+                 'criteria' : 'equal to',
+                 'value'    :  False    ,
+                 'format'   :  fko      })
+
+            worksheet.conditional_format(
+                1, 1, len(users), column-1,
+                {'type'     : 'cell'    ,
+                 'criteria' : 'equal to',
+                 'value'    :  True     ,
+                 'format'   :  fok      })
+
+        workbook.close()
+
+        response = open(output.name, 'r+b')
+        response = http.HttpResponse(response,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+        response['Content-Disposition'] = \
+            'attachment; filename={}-{}.xlsx'.format(code, promo)
+
+        return response

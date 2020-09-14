@@ -20,8 +20,15 @@ urlpatterns = [
     path('agns/<code>/<int:promo>/uploads/:download/',
         views.download_all_code_promo, name='download_all_code_promo'),
 
+    path('agns/<code>/<int:promo>/uploads/:summary/',
+        views.summary, name='summary'),
+
+    path('agns/<code>/<int:promo>/delete/', views.delete_all_assignments),
+
     path('agns/<code>/<subcode>/<int:promo>/', include([
         path('', views.Assignment.as_view(), name='assignment'),
+
+        path('delete/', views.delete_assignment),
 
         path('handins/<int:index>/', views.handin, name='handin'),
 
