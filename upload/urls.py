@@ -16,6 +16,7 @@ urlpatterns = [
 
     path('groups/<code>/<int:promo>/', views.upload_groups),
 
+    path('users/', views.upload_users),
 
     path('agns/<code>/<int:promo>/uploads/:download/',
         views.download_all_code_promo, name='download_all_code_promo'),
@@ -24,6 +25,9 @@ urlpatterns = [
         views.summary, name='summary'),
 
     path('agns/<code>/<int:promo>/delete/', views.delete_all_assignments),
+
+    path('agns/<code>/<int:promo>/students/',
+         views.students_of_code_promo, name='code_promo_students'),
 
     path('agns/<code>/<subcode>/<int:promo>/', include([
         path('', views.Assignment.as_view(), name='assignment'),

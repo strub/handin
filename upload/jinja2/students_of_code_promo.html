@@ -1,0 +1,27 @@
+{% extends 'layout.html' %}
+{% import 'macros.html' as macros with context %}
+
+{% block title %}Students list -- {{ code }} - {{ promo }}{% endblock %}
+
+{% block contents %}
+<h1>Students list -- {{ code }} - {{ promo }}</h1>
+
+<p><strong>Number of students:</strong> {{ students | length }}</p>
+
+<table class="table table-striped uploads">
+<thead>
+  <tr>
+    <th>Fullname</th>
+    <th>Groups</th>
+  </tr>
+</thead>
+<tbody>
+{% for student in students %}
+  <tr>
+    <td>{{ student.lastname }} {{ student.firstname }} ({{ student.email }})</td>
+    <td>{{ groups[student.login] | join(", ") }}</td>
+  </tr>
+{% endfor %}
+</tbody>
+</table>
+{% endblock %}

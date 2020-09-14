@@ -6,7 +6,7 @@ import itertools as it, humanfriendly as hf, bs4
 from   collections import namedtuple, OrderedDict as odict
 
 from   django.conf import settings
-from   django.core.exceptions import PermissionDenied
+from   django.core.exceptions import PermissionDenied, ObjectDoesNotExist
 import django.core.paginator as paginator
 from   django.core.cache import cache
 from   django.core.files.base import File, ContentFile
@@ -183,6 +183,21 @@ GSCHEMA = dict(
         group  = dict(type = 'number', minimum = 1),
     ),
     required = ['login', 'group'],
+  ),
+)
+
+USCHEMA = dict(
+  type  = 'array',
+  items = dict(
+    type  = 'object',
+    additionalProperties = False,
+    properties = dict(
+        login     = dict(type = 'string', pattern = '^[a-zA-Z0-9-_.]+$'),
+        firstname = dict(type = 'string'),
+        lastname  = dict(type = 'string'),
+        email     = dict(type = 'string'),
+    ),
+    required = ['login', 'firstname', 'lastname', 'email'],
   ),
 )
 
@@ -576,6 +591,47 @@ def logout(request):
 # --------------------------------------------------------------------
 @dhttp.require_http_methods(['PUT'])
 @dcsrf.csrf_exempt
+def upload_users(request):
+    _check_shared_secret(request)
+
+    import json, jsonschema, mimeparse as mp, base64, binascii
+
+    mtype, msub, mdata = mp.parse_mime_type(request.content_type)
+
+    if (mtype, msub) != ('application', 'json'):
+        return http.HttpResponseBadRequest()
+
+    charset = mdata.get('charset', 'utf-8')
+
+    try:
+        body = request.body.decode(charset)
+        jso  = json.loads(body)
+
+        jsonschema.validate(jso, USCHEMA)
+
+    except (json.decoder.JSONDecodeError,
+            jsonschema.exceptions.ValidationError,
+            UnicodeDecodeError) as e:
+        return http.HttpResponseBadRequest()
+
+    with db.transaction.atomic():
+        for user in jso:
+            user, _ = dauth.get_user_model().objects.get_or_create(
+                login    = user['login'],
+                defaults = dict(
+                    firstname = user['firstname'],
+                    lastname  = user['lastname'],
+                    email     = user['email'],
+                    ou        = 'cn=imported',
+                    cls       = 'Etudiants',
+                ),
+            )
+
+    return http.HttpResponse("OK\r\n", content_type = 'text/plain')
+
+# --------------------------------------------------------------------
+@dhttp.require_http_methods(['PUT'])
+@dcsrf.csrf_exempt
 def upload_groups(request, code, promo):
     _check_shared_secret(request)
 
@@ -614,16 +670,10 @@ def upload_groups(request, code, promo):
         }
 
         for g1 in jso:
-            user, _ = dauth.get_user_model().objects.get_or_create(
-                login    = g1['login'],
-                defaults = dict(
-                    firstname = '<imported>',
-                    lastname  = '<imported>',
-                    email     = 'imported@example.com',
-                    ou        = 'cn=imported',
-                    cls       = 'Etudiants',
-                ),
-            )
+            try:
+                user = dauth.get_user_model().objects.get(login = g1['login'])
+            except ObjectDoesNotExist:
+                continue
             user.groups.add(groups[g1['group']]); user.save()
 
     return http.HttpResponse("OK\r\n", content_type = 'text/plain')
@@ -2259,3 +2309,26 @@ def summary(request, code, promo):
             'attachment; filename={}-{}.xlsx'.format(code, promo)
 
         return response
+
+# --------------------------------------------------------------------
+@login_required
+@permission_required('upload.admin', raise_exception=True)
+@dhttp.require_GET
+def students_of_code_promo(request, code, promo):
+    gname    = '%s:%d' % (code, promo)
+    students = dauth.get_user_model() \
+                    .objects \
+                    .prefetch_related('groups') \
+                    .filter(groups__name__startswith = gname + ':') \
+                    .order_by('login') \
+                    .all()[:]
+    groups   = {}
+
+    for student in students:
+        groups[student.login] = \
+            [x.name[len(gname)+1:] for x in student.groups.all()
+                 if x.name.startswith(gname + ':')]
+        groups[student.login].sort()
+
+    context = dict(students = students, groups = groups, code = code, promo = promo)
+    return dutils.render(request, 'students_of_code_promo.html', context)
