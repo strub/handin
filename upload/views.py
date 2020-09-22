@@ -180,7 +180,7 @@ GSCHEMA = dict(
     additionalProperties = False,
     properties = dict(
         login  = dict(type = 'string', pattern = '^[a-zA-Z0-9-_.]+$'),
-        group  = dict(type = 'number', minimum = 1),
+        group  = dict(type = 'string', pattern = '^[a-zA-Z0-9]+$'),
     ),
     required = ['login', 'group'],
   ),
@@ -665,7 +665,7 @@ def upload_groups(request, code, promo):
 
         groups = {
             x: dauth.models.Group.objects.get_or_create(
-                   name = '%s:%d' % (gname, x)
+                   name = '%s:%s' % (gname, x)
                )[0] for x in groups
         }
 
@@ -748,7 +748,7 @@ def uploads_by_users(request, code, subcode, promo):
 
     for entry in grp:
         groups.setdefault(entry.login, set()) \
-              .add(int(entry.gname[len(gname)+1:]))
+              .add(entry.gname[len(gname)+1:])
     groups = { k: min(v) for k, v in groups.items() }
 
     for x in hdn:
@@ -938,7 +938,6 @@ def _upload_details(request, code, subcode, promo, flt, view, must, offset = Non
     if offset is None:
         hdn = hdn.first()
     else:
-        print(len(hdn))
         try:
             hdn = hdn[len(hdn) - offset]
         except IndexError:
@@ -2163,7 +2162,6 @@ def autocomplete_users(request):
     users, q = [], request.GET.get('q', '').strip()
 
     if len(q) >= 2:
-        print(settings.AUTH_USER_MODEL)
         users = User.objects \
             .filter(login__contains = q) \
             .values_list('login', 'firstname', 'lastname') \

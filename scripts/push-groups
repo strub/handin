@@ -32,9 +32,9 @@ def _main():
         try:
             with open(csvname, 'r', encoding = 'utf-8') as stream:
                 for row in csv.reader(stream, delimiter=','):
-                    if len(row) != 2 or re.match('^[0-9]+$', row[1]) is None:
+                    if len(row) != 2 or re.match('^[a-zA-Z0-9]+$', row[1]) is None:
                         raise Error('invalid CSV file')
-                    dta.append(dict(login = row[0], group = int(row[1])))
+                    dta.append(dict(login = row[0], group = row[1]))
         except csv.Error as e:
             raise Error('malformed CSV file', e)
         except (OSError, IOError) as e:
