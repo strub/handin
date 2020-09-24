@@ -1,0 +1,39 @@
+#! /usr/bin/env python3
+
+# --------------------------------------------------------------------
+import re, csv
+
+# --------------------------------------------------------------------
+LASTNAME  = 'nom'
+FIRSTNAME = 'prénom'
+EMAIL     = 'mail'
+GROUP     = 'groupes'
+
+# --------------------------------------------------------------------
+def _main():
+    fname  = 'students.csv'
+    uname  = 'users'
+    gname  = 'groups'
+    users  = []
+    groups = []
+
+    with open(fname, newline='', encoding='utf-8-sig') as csvfile:
+        for row in csv.DictReader(csvfile, delimiter = ';'):
+            email     = row[EMAIL]
+            firstname = row[FIRSTNAME]
+            lastname  = row[LASTNAME]
+            login     = email.split('@')[0]
+            group     = re.sub(r'^Groupe?\s+', '', row[GROUP].strip())
+
+            users .append((login, firstname, lastname, email))
+            groups.append((login, group))
+
+    with open(uname, 'w', encoding='utf-8') as ufile:
+        csv.writer(ufile).writerows(users)
+
+    with open(gname, 'w', encoding='utf-8') as gfile:
+        csv.writer(gfile).writerows(groups)
+
+# --------------------------------------------------------------------
+if __name__ == '__main__':
+    _main()

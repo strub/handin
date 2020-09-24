@@ -203,6 +203,7 @@ USCHEMA = dict(
 
 # --------------------------------------------------------------------
 FORM = r'''
+<div class="alert alert-primary pt-3">
 <form class="form" style="width: 70%%%%;" method="post"
       enctype="multipart/form-data" action="handins/%%(index)d/">
 
@@ -231,6 +232,7 @@ FORM = r'''
     %%(admin)s
   </div>
 </form>
+</div>
 ''' % (
   'Missing required files are taken from last submission of this question.',
 )
@@ -770,7 +772,7 @@ def uploads_by_users(request, code, subcode, promo):
     context = dict(
         the    = the, qst = qst, uploads = uploads, users = users, grades = grades,
         groups = sorted(uploads.keys(), key = \
-                            lambda x : math.inf if x is None else x),
+                            lambda x : '' if x is None else x),
         nav    = _build_nav(request.user, the))
 
     return dutils.render(request, 'uploads_by_users.html', context)
